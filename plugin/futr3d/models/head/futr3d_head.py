@@ -11,7 +11,8 @@ from mmdet.models.utils.transformer import inverse_sigmoid
 from mmdet3d.models.builder import HEADS
 from mmdet.models.dense_heads.detr_head import DETRHead
 from mmdet3d.models import builder
-from plugin.fudet.core.bbox.utils import normalize_bbox, denormalize_bbox
+# from plugin.fudet.core.bbox.utils import normalize_bbox, denormalize_bbox
+from plugin.futr3d.core.bbox.utils import normalize_bbox, denormalize_bbox
 
 @HEADS.register_module()
 class FUTR3DHead(DETRHead):

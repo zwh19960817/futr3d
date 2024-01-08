@@ -1,0 +1,4 @@
+.idea
+mmdet3d.egg-info
+.mim
+work_dirs/*

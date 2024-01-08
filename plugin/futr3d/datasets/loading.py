@@ -15,7 +15,8 @@ from mmdet3d.core.bbox import box_np_ops
 from mmdet3d.datasets.pipelines import data_augment_utils
 from mmdet3d.datasets.builder import OBJECTSAMPLERS
 from mmdet3d.datasets.pipelines.dbsampler import BatchSampler
-from plugin.fudet.core.points import RadarPoints
+# from plugin.fudet.core.points import RadarPoints
+from plugin.futr3d.core.points import RadarPoints
 
 def reduce_LiDAR_beams(pts, reduce_beams_to=32, chosen_beam_id=13):
     #print(pts.size())

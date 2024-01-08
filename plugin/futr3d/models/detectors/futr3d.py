@@ -10,7 +10,8 @@ from mmdet3d.models import builder
 from mmdet3d.models.builder import DETECTORS
 from mmdet3d.models.detectors import Base3DDetector, MVXTwoStageDetector
 from mmdet3d.core import bbox3d2result, merge_aug_bboxes_3d
-from plugin.fudet.models.utils.grid_mask import GridMask
+# from plugin.fudet.models.utils.grid_mask import GridMask
+from plugin.futr3d.models.utils.grid_mask import GridMask
 
 @DETECTORS.register_module()
 class FUTR3D(MVXTwoStageDetector):
