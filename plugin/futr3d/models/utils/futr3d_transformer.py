@@ -120,7 +120,7 @@ class FUTR3DTransformerDecoder(TransformerLayerSequence):
                 pos_scale = self.query_scale(output) if lid != 0 else 1
                 raw_query_pos = raw_query_pos.permute(1, 0, 2)
                 query_pos = pos_scale * raw_query_pos
-            
+            # query 从各传感器提取信息
             output = layer(
                 output,
                 *args,
@@ -144,7 +144,7 @@ class FUTR3DTransformerDecoder(TransformerLayerSequence):
             if self.return_intermediate:
                 intermediate.append(output)
                 intermediate_reference_points.append(reference_points)
-
+        # 返回中间output和reference_point
         if self.return_intermediate:
             return torch.stack(intermediate), torch.stack(
                 intermediate_reference_points)
@@ -473,7 +473,7 @@ class FUTR3DTransformer(BaseModule):
             spatial_shapes = None
             level_start_index = None
             valid_ratios = None
-        
+        # 二维拍平(b,c,w,h)->(b,w*h,c); mask,位置和尺度编码; 多尺度shape; 尺度起点记录;
         pts_feat_flatten, mask_flatten, lvl_pos_embed_flatten, spatial_shapes, \
                 level_start_index, valid_ratios = self.feats_prepare(mlvl_pts_feats, mlvl_masks, mlvl_pos_embeds)
         
@@ -482,12 +482,12 @@ class FUTR3DTransformer(BaseModule):
 
         
         if self.use_dab:
-            reference_points = query_embed[..., self.embed_dims:]
+            reference_points = query_embed[..., self.embed_dims:] #最后3维为参考点位置信息
             if self.anchor_size == 6:
                 reference_points[..., 0:6] = reference_points[..., 0:6].sigmoid()
             else:
                 reference_points = reference_points.sigmoid()
-            tgt = query_embed[..., :self.embed_dims]
+            tgt = query_embed[..., :self.embed_dims] #前256维为参考点box信息
             if len(tgt.shape) == 2:
                 query = tgt.unsqueeze(0).expand(bs, -1, -1)
             else:

@@ -265,7 +265,7 @@ class FUTR3DAttention(BaseModule):
                 bs, num_query, self.num_heads, self.num_levels, self.num_points, 2)
             attention_weights = self.attention_weights(query).view(
                 bs, num_query, self.num_heads, self.num_levels * self.num_points)
-            attention_weights = attention_weights.softmax(-1)
+            attention_weights = attention_weights.softmax(-1)   #16个参考点的的权重
 
             attention_weights = attention_weights.view(bs, num_query,
                                                     self.num_heads,

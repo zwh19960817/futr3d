@@ -87,7 +87,7 @@ def nuscenes_data_prep(root_path,
     nuscenes_converter.export_2d_annotation(
         root_path, info_val_path, version=version)
     create_groundtruth_database(dataset_name, root_path, info_prefix,
-                                'data/nusc_new/nuscenes_infos_train.pkl')
+                                'data/nuscenes/nuscenes_infos_train.pkl')
 
 
 def lyft_data_prep(root_path, info_prefix, version, max_sweeps=10):

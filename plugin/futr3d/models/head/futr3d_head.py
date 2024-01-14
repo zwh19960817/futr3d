@@ -215,11 +215,11 @@ class FUTR3DHead(DETRHead):
             reference = inverse_sigmoid(reference)
             outputs_class = self.cls_branches[lvl](hs[lvl])
             tmp = self.reg_branches[lvl](hs[lvl])
-            
-            tmp[..., 0:2] += reference[..., 0:2]
+            # 恢复 xyz
+            tmp[..., 0:2] += reference[..., 0:2]# x,y
             tmp[..., 0:2] = tmp[..., 0:2].sigmoid()
             if reference.shape[-1] == 3:
-                tmp[..., 4:5] += reference[..., 2:3]
+                tmp[..., 4:5] += reference[..., 2:3]# z
             tmp[..., 4:5] = tmp[..., 4:5].sigmoid()
             tmp[..., 0:1] = (tmp[..., 0:1] * (self.pc_range[3] - self.pc_range[0]) + self.pc_range[0])
             tmp[..., 1:2] = (tmp[..., 1:2] * (self.pc_range[4] - self.pc_range[1]) + self.pc_range[1])
