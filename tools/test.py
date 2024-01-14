@@ -68,9 +68,9 @@ def parse_args():
         nargs='+',
         help='evaluation metrics, which depends on the dataset, e.g., "bbox",'
         ' "segm", "proposal" for COCO, and "mAP", "recall" for PASCAL VOC')
-    parser.add_argument('--show', action='store_true', help='show results')
+    parser.add_argument('--show', action='store_true', default=True, help='show results')
     parser.add_argument(
-        '--show-dir', help='directory where results will be saved')
+        '--show-dir', default='/home/zwh/work_space/deep/bev/futr3d/work_dirs/temp', help='directory where results will be saved')
     parser.add_argument(
         '--gpu-collect',
         action='store_true',

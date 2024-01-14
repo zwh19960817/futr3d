@@ -55,6 +55,16 @@ For example, to evalaute FUTR3D with LiDAR-cam on 8 GPUs, please use
 bash tools/dist_train.sh plugin/futr3d/configs/lidar_cam/lidar_0075_cam_res101.py ../lidar_cam.pth 8 --eval bbox
 ```
 
+## Test and View
+测试集生成测试结果和逐帧可视化
+```
+torchrun
+--nproc_per_node=1
+tools/test.py
+plugin/futr3d/configs/lidar_cam/lidar_0075v_cam_res101.py
+/home/zwh/work_space/deep/bev/futr3d/work_dirs/lidar_0075_cam_res101_900q.pth
+--format-only
+```
 
 ## Results
 

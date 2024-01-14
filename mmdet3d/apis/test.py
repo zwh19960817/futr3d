@@ -49,8 +49,7 @@ def single_gpu_test(model,
                     data,
                     result,
                     out_dir=out_dir,
-                    show=show,
-                    score_thr=show_score_thr)
+                    show=show)
             # Visualize the results of MMDetection model
             # 'show_result' is MMdetection visualization API
             else:
