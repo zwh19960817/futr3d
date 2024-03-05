@@ -97,7 +97,7 @@ class FUTR3D(MVXTwoStageDetector):
             self._freeze_backbone()
 
     def _freeze_backbone(self):
-        for modules in [self.img_backbone, self.img_neck, self.pts_backbone, \
+        for modules in [self.pts_backbone, \
                         self.pts_middle_encoder, self.pts_neck]: 
             if modules is not None:
                 modules.eval()
@@ -112,13 +112,13 @@ class FUTR3D(MVXTwoStageDetector):
             # update real input shape of each single img
             for img_meta in img_metas:
                 img_meta.update(input_shape=input_shape)
-
+            # 特征提取时候 n个图像和batch可以合并
             if img.dim() == 5 and img.size(0) == 1:
                 img.squeeze_()
             elif img.dim() == 5 and img.size(0) > 1:
                 B, N, C, H, W = img.size()
                 img = img.view(B * N, C, H, W)
-            if self.use_grid_mask:
+            if self.use_grid_mask: # 随机grid遮挡
                 img = self.grid_mask(img)
             img_feats = self.img_backbone(img)
             if isinstance(img_feats, dict):

@@ -13,7 +13,7 @@ from mmdet3d.core.bbox import (Box3DMode, CameraInstance3DBoxes, Coord3DMode,
 from mmdet3d.core.visualizer import (show_multi_modality_result, show_result,
                                      show_seg_result)
 from mmdet3d.datasets import build_dataset
-
+from plugin.futr3d import datasets
 
 def parse_args():
     parser = argparse.ArgumentParser(description='Browse a dataset')

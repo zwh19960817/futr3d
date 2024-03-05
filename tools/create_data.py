@@ -87,7 +87,8 @@ def nuscenes_data_prep(root_path,
     nuscenes_converter.export_2d_annotation(
         root_path, info_val_path, version=version)
     create_groundtruth_database(dataset_name, root_path, info_prefix,
-                                'data/nuscenes/nuscenes_infos_train.pkl')
+                                osp.join(root_path, f'{info_prefix}_infos_train.pkl')) # 改成这样数据集就可以在其他目录
+                                # 'data/nuscenes/nuscenes_infos_train.pkl')
 
 
 def lyft_data_prep(root_path, info_prefix, version, max_sweeps=10):

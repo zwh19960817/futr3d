@@ -109,15 +109,15 @@ class FUTR3DTransformerDecoder(TransformerLayerSequence):
         intermediate = []
         intermediate_reference_points = []
         for lid, layer in enumerate(self.layers):
-            
+
             reference_points_input = reference_points
             if self.use_dab:
                 if self.no_sine_embed:
                     raw_query_pos = self.ref_point_head(reference_points_input)
                 else:
-                    query_sine_embed = gen_sineembed_for_position(reference_points_input) # bs, nq, 256*2 
+                    query_sine_embed = gen_sineembed_for_position(reference_points_input) # 对xyz坐标进行位置编码[bs, n, 128*3(x/y/z)]
                     raw_query_pos = self.ref_point_head(query_sine_embed) # bs, nq, 256
-                pos_scale = self.query_scale(output) if lid != 0 else 1
+                pos_scale = self.query_scale(output) if lid != 0 else 1#第一次位置编码无需映射
                 raw_query_pos = raw_query_pos.permute(1, 0, 2)
                 query_pos = pos_scale * raw_query_pos
             # query 从各传感器提取信息
@@ -139,7 +139,7 @@ class FUTR3DTransformerDecoder(TransformerLayerSequence):
                 
                 new_reference_points = new_reference_points.sigmoid()
                 
-                reference_points = new_reference_points.detach()
+                reference_points = new_reference_points.detach() # 参考点更新
             output = output.permute(1, 0, 2)
             if self.return_intermediate:
                 intermediate.append(output)
@@ -435,44 +435,8 @@ class FUTR3DTransformer(BaseModule):
         """
         assert self.as_two_stage or query_embed is not None
         if mlvl_pts_feats is not None:
-            batch_size = mlvl_pts_feats[0].shape[0]
-            feat_flatten = []
-            mask_flatten = []
-            lvl_pos_embed_flatten = []
-            spatial_shapes = []
-            for lvl, (feat, mask, pos_embed) in enumerate(
-                    zip(mlvl_pts_feats, mlvl_masks, mlvl_pos_embeds)):
-                bs, c, h, w = feat.shape
-                spatial_shape = (h, w)
-                spatial_shapes.append(spatial_shape)
-                feat = feat.flatten(2).transpose(1, 2)
-                mask = mask.flatten(1)
-                pos_embed = pos_embed.flatten(2).transpose(1, 2)
-                lvl_pos_embed = pos_embed + self.level_embeds[lvl].view(1, 1, -1)
-                lvl_pos_embed_flatten.append(lvl_pos_embed)
-                feat_flatten.append(feat)
-                mask_flatten.append(mask)
-            feat_flatten = torch.cat(feat_flatten, 1)
-            mask_flatten = torch.cat(mask_flatten, 1)
-            lvl_pos_embed_flatten = torch.cat(lvl_pos_embed_flatten, 1)
-            spatial_shapes = torch.as_tensor(
-                spatial_shapes, dtype=torch.long, device=feat_flatten.device)
-            level_start_index = torch.cat((spatial_shapes.new_zeros(
-                (1, )), spatial_shapes.prod(1).cumsum(0)[:-1]))
-            valid_ratios = torch.stack(
-                [self.get_valid_ratio(m) for m in mlvl_masks], 1)
+            bs = mlvl_pts_feats[0].shape[0]
 
-            pts_feat_flatten = feat_flatten # (H*W, bs, embed_dims)
-            lvl_pos_embed_flatten = lvl_pos_embed_flatten.permute(
-                1, 0, 2)  # (H*W, bs, embed_dims)
-        else:
-            bs, n, c = mlvl_img_feats[0].shape[:3]
-            pts_feat_flatten = None
-            mask_flatten = None
-            lvl_pos_embed_flatten = None
-            spatial_shapes = None
-            level_start_index = None
-            valid_ratios = None
         # 二维拍平(b,c,w,h)->(b,w*h,c); mask,位置和尺度编码; 多尺度shape; 尺度起点记录;
         pts_feat_flatten, mask_flatten, lvl_pos_embed_flatten, spatial_shapes, \
                 level_start_index, valid_ratios = self.feats_prepare(mlvl_pts_feats, mlvl_masks, mlvl_pos_embeds)
@@ -482,7 +446,7 @@ class FUTR3DTransformer(BaseModule):
 
         
         if self.use_dab:
-            reference_points = query_embed[..., self.embed_dims:] #最后3维为参考点位置信息
+            reference_points = query_embed[..., self.embed_dims:] #最后3维为参考点lwh信息
             if self.anchor_size == 6:
                 reference_points[..., 0:6] = reference_points[..., 0:6].sigmoid()
             else:
@@ -513,7 +477,7 @@ class FUTR3DTransformer(BaseModule):
             # value=pts_feat_flatten,
             pts_feats=pts_feat_flatten,
             img_feats=mlvl_img_feats,
-            rad_feats=rad_feat_flatten, 
+            rad_feats=rad_feat_flatten,
             query_pos=query_pos.permute(1, 0, 2) if not self.use_dab else None,
             key_padding_mask=mask_flatten,
             reference_points=reference_points,
@@ -529,7 +493,7 @@ class FUTR3DTransformer(BaseModule):
             **kwargs)
 
         inter_references_out = inter_references
-        
+        # 每层的q, 出书参考点 每层的参考点
         return inter_states, init_reference_out, \
             inter_references_out, None, None
 
@@ -552,15 +516,15 @@ def gen_sineembed_for_position(pos_tensor):
     # n_query, bs, _ = pos_tensor.size()
     # sineembed_tensor = torch.zeros(n_query, bs, 256)
     scale = 2 * math.pi
-    dim_t = torch.arange(128, dtype=torch.float32, device=pos_tensor.device)
-    dim_t = 10000 ** (2 * (dim_t // 2) / 128)
+    dim_t = torch.arange(128, dtype=torch.float32, device=pos_tensor.device) # 因为是正余弦交叉编码
+    dim_t = 10000 ** (2 * (dim_t // 2) / 128) # [sin(x0) cos(x0) sin(x1) cos(x1)]
     x_embed = pos_tensor[:, :, 0] * scale
     y_embed = pos_tensor[:, :, 1] * scale
     pos_x = x_embed[:, :, None] / dim_t
     pos_y = y_embed[:, :, None] / dim_t
-    pos_x = torch.stack((pos_x[:, :, 0::2].sin(), pos_x[:, :, 1::2].cos()), dim=3).flatten(2)
+    pos_x = torch.stack((pos_x[:, :, 0::2].sin(), pos_x[:, :, 1::2].cos()), dim=3).flatten(2)#正余弦交叉编码
     pos_y = torch.stack((pos_y[:, :, 0::2].sin(), pos_y[:, :, 1::2].cos()), dim=3).flatten(2)
-    
+
     if pos_tensor.size(-1) == 2:
         pos = torch.cat((pos_y, pos_x), dim=2)
     elif pos_tensor.size(-1) == 4:

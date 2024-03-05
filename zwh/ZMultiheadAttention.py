@@ -8,7 +8,10 @@ class MultiheadAttention(nn.Module):
                  num_heads,
                  att_dropout=0.1,
                  out_dropout=0.1,
-                 average_attn_weights=True):
+                 average_attn_weights=True,
+                 use_separate_proj_weight = False,
+                 device=None,
+                 dtype=None):
         super(MultiheadAttention, self).__init__()
         self.embed_dim = embed_dim
         self.num_heads = num_heads
@@ -20,6 +23,16 @@ class MultiheadAttention(nn.Module):
         assert self.embed_dim == self.num_heads * self.head_dim, \
             'embed_dim <{}> must be divisible by num_heads <{}>'.format(self.embed_dim, self.num_heads)
         self.fuse_heads = nn.Linear(self.embed_dim, self.embed_dim)
+        factory_kwargs = {'device': device, 'dtype': dtype}
+        self.use_separate_proj_weight = use_separate_proj_weight # 是否对输入进行线性映射
+        if not use_separate_proj_weight:
+            self.in_proj_weight = nn.Parameter(torch.empty((3 * embed_dim, embed_dim), **factory_kwargs))
+            self.in_proj_bias = nn.Parameter(torch.empty(3 * embed_dim, **factory_kwargs))
+        self._reset_parameters()
+
+    def _reset_parameters(self):
+        nn.init.xavier_uniform_(self.in_proj_weight)
+        nn.init.constant_(self.in_proj_bias, 0.)
 
     def forward(self,
                 query: torch.Tensor,
@@ -27,19 +40,38 @@ class MultiheadAttention(nn.Module):
                 value: torch.Tensor,
                 identity=None,
                 query_pos=None,
-                key_pos=None):
+                key_pos=None,
+                use_separate_proj_weight: bool = False):
+        '''
+        Args:
+            query:
+            key:
+            value:
+            identity:
+            query_pos:
+            key_pos:
+            use_separate_proj_weight: 参考pytorch
+
+        Returns:
+
+        '''
         assert query.dim() == 3 and key.dim() == 3 and value.dim() == 3
         assert key.shape == value.shape, f"key shape {key.shape} does not match value shape {value.shape}"
         tgt_len, bsz, embed_dim = query.shape  # [查询数量 batch数量 特征维度]
         src_len, _, _ = key.shape  # [被查询数量,_,_]
         # 默认和query进行shortcut(要在位置编码前,因为output为输出特征,特征和原特征shortcut,下一层再重新加位置编码,否则不就重了)
         if identity is None:
-            identity = query
+            identity = query.clone()
         # 位置编码
         if query_pos is not None:
             query = query + query_pos
         if key_pos is not None:
             key = key + key_pos
+
+        # 是否需要对输入进行映射,mmcv中 q=k=v,那么就需要此处进行映射
+        if not self.use_separate_proj_weight:
+            assert self.in_proj_weight is not None, "use_separate_proj_weight is False but in_proj_weight is None"
+            query, key, value = nn.functional._in_projection_packed(query, key, value, self.in_proj_weight, self.in_proj_bias)
         # 特征划分为self.num_heads 份 [tgt,b,embed_dim] -> [b,n_h, tgt, d_h]
         # [n,b,n_h*d_h] -> [b,n_h,n,d_h] 主要是target和source之前的特征匹配和提取, batch和n_h维度不处理
         query = query.contiguous().view(tgt_len, bsz, self.num_heads, self.head_dim).permute(1, 2, 0, 3)

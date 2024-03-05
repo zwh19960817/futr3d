@@ -276,7 +276,7 @@ class FUTR3DAttention(BaseModule):
             ref_points = ref_points[..., :2]
             if ref_points.shape[-1] == 2:
                 offset_normalizer = torch.stack(
-                    [spatial_shapes[..., 1], spatial_shapes[..., 0]], -1)
+                    [spatial_shapes[..., 1], spatial_shapes[..., 0]], -1) #归一化
                 sampling_locations = ref_points[:, :, None, :, None, :] \
                     + sampling_offsets \
                     / offset_normalizer[None, None, None, :, None, :]
@@ -393,24 +393,24 @@ def feature_sampling(mlvl_feats, reference_points, pc_range, img_metas):
     reference_points[..., 0:1] = reference_points[..., 0:1]*(pc_range[3] - pc_range[0]) + pc_range[0]
     reference_points[..., 1:2] = reference_points[..., 1:2]*(pc_range[4] - pc_range[1]) + pc_range[1]
     reference_points[..., 2:3] = reference_points[..., 2:3]*(pc_range[5] - pc_range[2]) + pc_range[2]
-    # reference_points (B, num_queries, 4)
+    # reference_points (B, num_queries, 4) [x y z 1]T
     reference_points = torch.cat((reference_points, torch.ones_like(reference_points[..., :1])), -1)
     B, num_query = reference_points.size()[:2]
     num_cam = lidar2img.size(1)
     reference_points = reference_points.view(B, 1, num_query, 4).repeat(1, num_cam, 1, 1).unsqueeze(-1)
     lidar2img = lidar2img.view(B, num_cam, 1, 4, 4).repeat(1, 1, num_query, 1, 1)
-    reference_points_cam = torch.matmul(lidar2img, reference_points).squeeze(-1)
+    reference_points_cam = torch.matmul(lidar2img, reference_points).squeeze(-1)#900个参考点映射到6张图的相机坐标系
     eps = 1e-5
-    mask = (reference_points_cam[..., 2:3] > eps)
+    mask = (reference_points_cam[..., 2:3] > eps) #前方的点mask
     reference_points_cam = reference_points_cam[..., 0:2] / torch.maximum(
-        reference_points_cam[..., 2:3], torch.ones_like(reference_points_cam[..., 2:3])*eps)
+        reference_points_cam[..., 2:3], torch.ones_like(reference_points_cam[..., 2:3])*eps) #900个参考点映射到6张图的归一化坐标系
     reference_points_cam[..., 0] /= img_metas[0]['img_shape'][0][1]
     reference_points_cam[..., 1] /= img_metas[0]['img_shape'][0][0]
     reference_points_cam = (reference_points_cam - 0.5) * 2
     mask = (mask & (reference_points_cam[..., 0:1] > -1.0) 
                  & (reference_points_cam[..., 0:1] < 1.0) 
                  & (reference_points_cam[..., 1:2] > -1.0) 
-                 & (reference_points_cam[..., 1:2] < 1.0))
+                 & (reference_points_cam[..., 1:2] < 1.0))#超过范围不要
     mask = mask.view(B, num_cam, 1, num_query, 1, 1).permute(0, 2, 3, 1, 4, 5)
     mask = torch.nan_to_num(mask)
     sampled_feats = []

@@ -134,11 +134,16 @@ class FUTR3DHead(DETRHead):
             mlvl_masks = []
             mlvl_positional_encodings = []
             for feat in mlvl_feats:
-                mlvl_masks.append(
-                    F.interpolate(img_masks[None],
-                                size=feat.shape[-2:]).to(torch.bool).squeeze(0))
-                mlvl_positional_encodings.append(
-                    self.positional_encoding(mlvl_masks[-1]))
+                mlvl_mask = F.interpolate(img_masks[None],
+                              size=feat.shape[-2:]).to(torch.bool).squeeze(0)
+                mlvl_masks.append(mlvl_mask)
+                mlvl_positional_encoding = self.positional_encoding(mlvl_mask)
+                mlvl_positional_encodings.append(mlvl_positional_encoding)
+                # mlvl_masks.append(
+                #     F.interpolate(img_masks[None],
+                #                 size=feat.shape[-2:]).to(torch.bool).squeeze(0))
+                # mlvl_positional_encodings.append(
+                #     self.positional_encoding(mlvl_masks[-1]))# zwh:这b代码,tm无语
         else:
             mlvl_masks = None
             mlvl_positional_encodings = None
@@ -206,7 +211,7 @@ class FUTR3DHead(DETRHead):
         hs = hs.permute(0, 2, 1, 3)
         outputs_classes = []
         outputs_coords = []
-
+        # 遍历每一层
         for lvl in range(hs.shape[0]):
             if lvl == 0:
                 reference = init_reference
