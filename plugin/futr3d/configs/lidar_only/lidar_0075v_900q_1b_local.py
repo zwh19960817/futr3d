@@ -100,7 +100,7 @@ model = dict(
             use_dab=True,
             decoder=dict(
                 type='FUTR3DTransformerDecoder',
-                num_layers=6,
+                num_layers=2,
                 use_dab=True,
                 anchor_size=3,
                 return_intermediate=True,
@@ -168,7 +168,7 @@ model = dict(
     )))
 
 dataset_type = 'NuScenesDataset'
-# data_root = 'data/nuscenes/'
+# data_root = '/mnt/data/adt_dataset/nuscenes/'
 data_root = '/media/zwh/ZWH4T/ZWH/Dataset3d/nuscenes/'
 file_client_args = dict(backend='disk')
 
@@ -201,14 +201,31 @@ db_sampler = dict(
         bicycle=6,
         pedestrian=2,
         traffic_cone=2),
-    points_loader=dict(
+    # points_loader=dict(
+    #     type='LoadReducedPointsFromFile',
+    #     coord_type='LIDAR',
+    #     load_dim=5,
+    #     use_dim=[0, 1, 2, 3, 4],
+    #     reduce_beams_to=1,
+    #     chosen_beam_id=[9],
+    #     file_client_args=file_client_args))
+    points_loader = dict(
         type='LoadPointsFromFile',
         coord_type='LIDAR',
         load_dim=5,
         use_dim=[0, 1, 2, 3, 4],
         file_client_args=file_client_args))
 
+
 train_pipeline = [
+    # dict(
+    #     type='LoadReducedPointsFromFile',
+    #     coord_type='LIDAR',
+    #     load_dim=5,
+    #     use_dim=5,
+    #     reduce_beams_to=1,
+    #     chosen_beam_id=[9],
+    #     file_client_args=file_client_args),
     dict(
         type='LoadPointsFromFile',
         coord_type='LIDAR',
@@ -217,11 +234,20 @@ train_pipeline = [
         file_client_args=file_client_args),
     dict(
         type='LoadPointsFromMultiSweeps',
-        sweeps_num=9,
+        sweeps_num=3,
         use_dim=[0, 1, 2, 3, 4],
         file_client_args=file_client_args,
         pad_empty_sweeps=True,
         remove_close=True),
+    # dict(
+    #     type='LoadReducedPointsFromMultiSweeps',
+    #     sweeps_num=9,
+    #     use_dim=[0, 1, 2, 3, 4],
+    #     reduce_beams_to=1,
+    #     chosen_beam_id=[9],
+    #     file_client_args=file_client_args,
+    #     pad_empty_sweeps=True,
+    #     remove_close=True),
     dict(type='LoadAnnotations3D', with_bbox_3d=True, with_label_3d=True),
     dict(type='ObjectSample', db_sampler=db_sampler),
     dict(
@@ -250,7 +276,7 @@ test_pipeline = [
         file_client_args=file_client_args),
     dict(
         type='LoadPointsFromMultiSweeps',
-        sweeps_num=9,
+        sweeps_num=3,
         use_dim=[0, 1, 2, 3, 4],
         file_client_args=file_client_args,
         pad_empty_sweeps=True,
@@ -276,30 +302,10 @@ test_pipeline = [
             dict(type='Collect3D', keys=['points'])
         ])
 ]
-# construct a pipeline for data and gt loading in show function
-# please keep its loading function consistent with test_pipeline (e.g. client)
-eval_pipeline = [
-    dict(
-        type='LoadPointsFromFile',
-        coord_type='LIDAR',
-        load_dim=5,
-        use_dim=5,
-        file_client_args=file_client_args),
-    dict(
-        type='LoadPointsFromMultiSweeps',
-        sweeps_num=9,
-        use_dim=[0, 1, 2, 3, 4],
-        file_client_args=file_client_args,
-        pad_empty_sweeps=True,
-        remove_close=True),
-    dict(
-        type='DefaultFormatBundle3D',
-        class_names=class_names,
-        with_label=False),
-    dict(type='Collect3D', keys=['points'])
-]
 
 data = dict(
+    samples_per_gpu=1,
+    workers_per_gpu=1,
     train=dict(
         type='CBGSDataset',
         dataset=dict(
@@ -319,10 +325,18 @@ data = dict(
 # Since the models are trained by 24 epochs by default, we set evaluation
 # interval to be 24. Please change the interval accordingly if you do not
 # use a default schedule.
-evaluation = dict(interval=2)
+evaluation = dict(interval=1)
 
 find_unused_parameters=True
 
 custom_hooks = [dict(type='FadeOjectSampleHook', num_last_epochs=5)]
 
-checkpoint_config = dict(interval=1, max_keep_ckpts=1)
+checkpoint_config = dict(interval=10, max_keep_ckpts=5)
+
+log_config = dict(
+    interval=2)
+runner = dict(type='EpochBasedRunner', max_epochs=300)
+workflow = [('train', 1),('val', 1)]
+
+# resume_from = 'work_dirs/lidar_0075v_900q_1b_server/latest.pth'
+

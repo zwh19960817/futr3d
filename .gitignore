@@ -4,3 +4,6 @@ mmdet3d.egg-info
 work_dirs/*
 data/nuscenes
 torchrun
+plugin/pointpillar/ops/*.egg-info
+plugin/pointpillar/ops/*-linux-gnu.so
+plugin/pointpillar/ops/build

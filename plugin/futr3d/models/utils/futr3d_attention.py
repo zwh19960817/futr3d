@@ -147,14 +147,16 @@ class FUTR3DAttention(BaseModule):
             self.rad_output_proj = nn.Linear(radar_dims, radar_dims)
             self.fused_embed += radar_dims
 
-        if self.fused_embed > embed_dims:
-            self.modality_fusion_layer = nn.Sequential(
-                nn.Linear(self.fused_embed, self.embed_dims),
-                nn.LayerNorm(self.embed_dims),
-                nn.ReLU(inplace=False),
-                nn.Linear(self.embed_dims, self.embed_dims),
-                nn.LayerNorm(self.embed_dims),
-            )
+        # if self.fused_embed > embed_dims:
+        # 单模态和多模态都使用,以免出bug   如radar输出64维度,结果需要256维度,而lidar就是256维度
+        #干脆全都统一处理一下
+        self.modality_fusion_layer = nn.Sequential(
+            nn.Linear(self.fused_embed, self.embed_dims),
+            nn.LayerNorm(self.embed_dims),
+            nn.ReLU(inplace=False),
+            nn.Linear(self.embed_dims, self.embed_dims),
+            nn.LayerNorm(self.embed_dims),
+        )
 
         self.init_weights()
 
@@ -369,12 +371,16 @@ class FUTR3DAttention(BaseModule):
         elif self.use_camera and self.use_radar:
             output = torch.cat((img_output, radar_output), dim=2)
             output = self.modality_fusion_layer(output)
+        elif self.use_lidar and self.use_radar:
+            output = torch.cat((pts_output, radar_output), dim=2)
+            output = self.modality_fusion_layer(output)
         elif self.use_lidar:
             output = pts_output
         elif self.use_camera:
             output = img_output
         elif self.use_radar:
-            output = img_output
+            output = radar_output
+            output = self.modality_fusion_layer(output)
 
         if not self.batch_first:
             # (num_query, bs ,embed_dims)

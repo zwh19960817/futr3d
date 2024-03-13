@@ -1,7 +1,7 @@
 _base_ = [
-    '../../../configs/_base_/datasets/nus-3d.py',
-    '../../../configs/_base_/schedules/cyclic_20e.py', 
-    '../../../configs/_base_/default_runtime.py'
+    '../../../../configs/_base_/datasets/nus-3d.py',
+    '../../../../configs/_base_/schedules/cyclic_20e.py',
+    '../../../../configs/_base_/default_runtime.py'
 ]
 
 plugin = 'plugin/futr3d'

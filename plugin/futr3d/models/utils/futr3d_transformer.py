@@ -436,6 +436,8 @@ class FUTR3DTransformer(BaseModule):
         assert self.as_two_stage or query_embed is not None
         if mlvl_pts_feats is not None:
             bs = mlvl_pts_feats[0].shape[0]
+        elif radar_feats is not None: # use radar batch without lidar
+            bs = radar_feats[0].shape[0]
 
         # 二维拍平(b,c,w,h)->(b,w*h,c); mask,位置和尺度编码; 多尺度shape; 尺度起点记录;
         pts_feat_flatten, mask_flatten, lvl_pos_embed_flatten, spatial_shapes, \

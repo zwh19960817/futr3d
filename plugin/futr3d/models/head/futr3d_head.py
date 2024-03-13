@@ -538,7 +538,7 @@ class FUTR3DHead(DETRHead):
             preds = self._get_bboxes_single(cls_score, bbox_pred)
             
             bboxes = preds['bboxes']
-            bboxes[:, 2] = bboxes[:, 2] - bboxes[:, 5] * 0.5
+            bboxes[:, 2] = bboxes[:, 2] - bboxes[:, 5] * 0.5#说明预测的是中心点
             bboxes = img_metas[img_id]['box_type_3d'](bboxes, self.code_size-1)
             scores = preds['scores']
             labels = preds['labels']

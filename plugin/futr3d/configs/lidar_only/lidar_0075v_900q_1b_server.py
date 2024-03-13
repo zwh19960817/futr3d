@@ -234,7 +234,7 @@ train_pipeline = [
         file_client_args=file_client_args),
     dict(
         type='LoadPointsFromMultiSweeps',
-        sweeps_num=9,
+        sweeps_num=3,
         use_dim=[0, 1, 2, 3, 4],
         file_client_args=file_client_args,
         pad_empty_sweeps=True,
@@ -269,19 +269,15 @@ train_pipeline = [
 ]
 test_pipeline = [
     dict(
-        type='LoadReducedPointsFromFile',
+        type='LoadPointsFromFile',
         coord_type='LIDAR',
         load_dim=5,
         use_dim=5,
-        reduce_beams_to=1,
-        chosen_beam_id=[9],
         file_client_args=file_client_args),
     dict(
-        type='LoadReducedPointsFromMultiSweeps',
-        sweeps_num=9,
+        type='LoadPointsFromMultiSweeps',
+        sweeps_num=3,
         use_dim=[0, 1, 2, 3, 4],
-        reduce_beams_to=1,
-        chosen_beam_id=[9],
         file_client_args=file_client_args,
         pad_empty_sweeps=True,
         remove_close=True),
@@ -305,32 +301,6 @@ test_pipeline = [
                 with_label=False),
             dict(type='Collect3D', keys=['points'])
         ])
-]
-# construct a pipeline for data and gt loading in show function
-# please keep its loading function consistent with test_pipeline (e.g. client)
-eval_pipeline = [
-    dict(
-        type='LoadReducedPointsFromFile',
-        coord_type='LIDAR',
-        load_dim=5,
-        use_dim=5,
-        reduce_beams_to=1,
-        chosen_beam_id=[9],
-        file_client_args=file_client_args),
-    dict(
-        type='LoadReducedPointsFromMultiSweeps',
-        sweeps_num=9,
-        use_dim=[0, 1, 2, 3, 4],
-        reduce_beams_to=1,
-        chosen_beam_id=[9],
-        file_client_args=file_client_args,
-        pad_empty_sweeps=True,
-        remove_close=True),
-    dict(
-        type='DefaultFormatBundle3D',
-        class_names=class_names,
-        with_label=False),
-    dict(type='Collect3D', keys=['points'])
 ]
 
 data = dict(
@@ -361,9 +331,11 @@ find_unused_parameters=True
 
 custom_hooks = [dict(type='FadeOjectSampleHook', num_last_epochs=5)]
 
-checkpoint_config = dict(interval=10, max_keep_ckpts=50)
+checkpoint_config = dict(interval=10, max_keep_ckpts=5)
 
 log_config = dict(
     interval=50)
 runner = dict(type='EpochBasedRunner', max_epochs=300)
+
+# resume_from = 'work_dirs/lidar_0075v_900q_1b_server/latest.pth'
 

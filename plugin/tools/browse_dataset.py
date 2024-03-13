@@ -10,9 +10,12 @@ from mmcv import Config, DictAction, mkdir_or_exist
 
 from mmdet3d.core.bbox import (Box3DMode, CameraInstance3DBoxes, Coord3DMode,
                                DepthInstance3DBoxes, LiDARInstance3DBoxes)
-from mmdet3d.core.visualizer import (show_multi_modality_result, show_result,
+from mmdet3d.core.visualizer import (show_multi_modality_result,
                                      show_seg_result, open3d_vis)
+from plugin.visualizer import show_result
 from mmdet3d.datasets import build_dataset
+from plugin import pipeline
+
 
 def parse_args():
     parser = argparse.ArgumentParser(description='Browse a dataset')
@@ -21,7 +24,7 @@ def parse_args():
         '--skip-type',
         type=str,
         nargs='+',
-        default=['Normalize', 'NormalizeGround'],
+        default=['Normalize'],
         help='skip some useless pipeline')
     parser.add_argument(
         '--output-dir',
@@ -41,18 +44,18 @@ def parse_args():
         '--online',
         action='store_true',
         help='Whether to perform online visualization. Note that you often '
-        'need a monitor to do so.')
+             'need a monitor to do so.')
     parser.add_argument(
         '--cfg-options',
         nargs='+',
         action=DictAction,
         help='override some settings in the used config, the key-value pair '
-        'in xxx=yyy format will be merged into config file. If the value to '
-        'be overwritten is a list, it should be like key="[a,b]" or key=a,b '
-        'It also allows nested list/tuple values, e.g. key="[(a,b),(c,d)]" '
-        'Note that the quotation marks are necessary and that no white space '
-        'is allowed.')
-    parser.add_argument('--dataset_fun',type=str,default='train')
+             'in xxx=yyy format will be merged into config file. If the value to '
+             'be overwritten is a list, it should be like key="[a,b]" or key=a,b '
+             'It also allows nested list/tuple values, e.g. key="[(a,b),(c,d)]" '
+             'Note that the quotation marks are necessary and that no white space '
+             'is allowed.')
+    parser.add_argument('--dataset_fun', type=str, default='train')
     args = parser.parse_args()
     return args
 
@@ -101,6 +104,9 @@ def to_depth_mode(points, bboxes):
     if bboxes is not None:
         bboxes = Box3DMode.convert(bboxes.clone(), Box3DMode.LIDAR,
                                    Box3DMode.DEPTH)
+        if bboxes.shape[1] == 9:  # 注意速度也要变换
+            bboxes = bboxes[:, [0, 1, 2, 3, 4, 5, 6, 8, 7]]
+            bboxes[:, 7:8] = -bboxes[:, 7:8]
     return points, bboxes
 
 
@@ -109,8 +115,10 @@ def show_det_data(input, out_dir, show=False):
     img_metas = input['img_metas']._data
     points = input['points']._data.numpy()
     gt_bboxes = input['gt_bboxes_3d']._data.tensor
+    gt_labels = input['gt_labels_3d']._data
     if img_metas['box_mode_3d'] != Box3DMode.DEPTH:
         points, gt_bboxes = to_depth_mode(points, gt_bboxes)
+        pass
     filename = osp.splitext(osp.basename(img_metas['pts_filename']))[0]
     # gt_bboxes[0,0] = 10
     # gt_bboxes[0,1] = 5
@@ -121,12 +129,14 @@ def show_det_data(input, out_dir, show=False):
     # gt_bboxes[0,6] = 3.14*45/180.0
     show_result(
         points,
-        gt_bboxes.clone(),
+        gt_bboxes.clone().numpy(),
         None,
         out_dir,
         filename,
         show=show,
-        snapshot=True)
+        snapshot=True,
+        gt_labels=gt_labels)
+
 
 def show_points(input, show=False):
     """Visualize 3D point cloud and 3D bboxes."""
@@ -134,6 +144,7 @@ def show_points(input, show=False):
     if show:
         vis = open3d_vis.Visualizer(points)
         vis.show()
+
 
 def show_seg_data(input, out_dir, show=False):
     """Visualize 3D point cloud and segmentation mask."""
@@ -226,7 +237,7 @@ def main():
 
     for input in dataset:
         if args.dataset_fun in ['val', 'test']:
-            show_points(input,show=args.online)
+            show_points(input, show=args.online)
             continue
         if vis_task in ['det', 'multi_modality-det']:
             # show 3D bboxes on 3D point clouds

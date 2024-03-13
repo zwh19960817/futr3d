@@ -21,35 +21,6 @@ point_cloud_range = [-54, -54, -5.0, 54, 54, 3.0]
 img_norm_cfg = dict(
     mean=[103.530, 116.280, 123.675], std=[1.0, 1.0, 1.0], to_rgb=False)
 
-center_head = dict(
-    type='CenterHead',
-    in_channels=sum([256, 256]),
-    tasks=[
-        dict(num_class=1, class_names=['car']),
-        dict(num_class=2, class_names=['truck', 'construction_vehicle']),
-        dict(num_class=2, class_names=['bus', 'trailer']),
-        dict(num_class=1, class_names=['barrier']),
-        dict(num_class=2, class_names=['motorcycle', 'bicycle']),
-        dict(num_class=2, class_names=['pedestrian', 'traffic_cone']),
-    ],
-    common_heads=dict(
-        reg=(2, 2), height=(1, 2), dim=(3, 2), rot=(2, 2), vel=(2, 2)),
-    share_conv_channel=64,
-    bbox_coder=dict(
-        type='CenterPointBBoxCoder',
-        pc_range=point_cloud_range[:2],
-        post_center_range=[-61.2, -61.2, -10.0, 61.2, 61.2, 10.0],
-        max_num=500,
-        score_threshold=0.1,
-        out_size_factor=8,
-        voxel_size=voxel_size[:2],
-        code_size=9),
-    separate_head=dict(
-        type='SeparateHead', init_bias=-2.19, final_kernel=3),
-    loss_cls=dict(type='GaussianFocalLoss', reduction='mean'),
-    loss_bbox=dict(type='L1Loss', reduction='mean', loss_weight=0.25),
-    norm_bbox=True)
-
 model = dict(
     type='FUTR3D',
     use_lidar=True,
@@ -200,7 +171,8 @@ model = dict(
     )))
 
 dataset_type = 'NuScenesDataset'
-data_root = 'data/nuscenes/'
+data_root = '/media/zwh/ZWH4T/ZWH/Dataset3d/nuscenes/'
+# data_root = 'data/nuscenes/'
 file_client_args = dict(backend='disk')
 
 db_sampler = dict(
@@ -386,4 +358,4 @@ lr_config = dict(
     min_lr_ratio=1e-3)
 checkpoint_config = dict(interval=1, max_keep_ckpts=1)
 
-load_from = 'checkpoint/lidar_0075_cam_res101.pth'
+# load_from = 'checkpoint/lidar_0075_cam_res101.pth'

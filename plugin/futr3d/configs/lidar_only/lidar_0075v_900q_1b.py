@@ -1,7 +1,7 @@
 _base_ = [
-    '../../../configs/_base_/datasets/nus-3d.py',
-    '../../../configs/_base_/schedules/cyclic_20e.py', 
-    '../../../configs/_base_/default_runtime.py'
+    '../../../../configs/_base_/datasets/nus-3d.py',
+    '../../../../configs/_base_/schedules/cyclic_20e.py',
+    '../../../../configs/_base_/default_runtime.py'
 ]
 
 plugin = 'plugin/futr3d'
@@ -65,7 +65,7 @@ model = dict(
         type='SECOND',
         in_channels=256,
         out_channels=[128, 256],
-        layer_nums=[5, 5],
+        layer_nums=[2, 2],
         layer_strides=[1, 2],
         norm_cfg=dict(type='BN', eps=1e-3, momentum=0.01),
         conv_cfg=dict(type='Conv2d', bias=False)),
@@ -100,7 +100,7 @@ model = dict(
             use_dab=True,
             decoder=dict(
                 type='FUTR3DTransformerDecoder',
-                num_layers=6,
+                num_layers=2,
                 use_dab=True,
                 anchor_size=3,
                 return_intermediate=True,
