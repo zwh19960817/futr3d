@@ -112,7 +112,9 @@ def show_result(points,
                 show=False,
                 snapshot=False,
                 gt_labels=None,
-                pred_labels=None):
+                pred_labels=None,
+                show_yaw=True,
+                show_speed=True):
     """Convert results into format that is directly readable for meshlab.
 
     Args:
@@ -134,8 +136,8 @@ def show_result(points,
         from .open3d_vis import Visualizer
 
         vis = Visualizer(points)
-        show_box_label(vis, pred_bboxes, pred_labels)
-        show_box_label(vis, gt_bboxes, gt_labels)
+        show_box_label(vis, pred_bboxes, pred_labels, show_yaw=show_yaw, show_speed=show_speed)
+        show_box_label(vis, gt_bboxes, gt_labels, show_yaw=show_yaw, show_speed=show_speed)
         show_path = osp.join(result_path,
                              f'{filename}_online.png') if snapshot else None
         vis.show(show_path)

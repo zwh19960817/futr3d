@@ -413,7 +413,7 @@ class FUTR3D(MVXTwoStageDetector):
                                             self.pts_bbox_head.test_cfg)
         return merged_bboxes
 
-    def show_results(self, data, result, out_dir, show=True, snapshot=True):
+    def show_results(self, data, result, out_dir, show=True, snapshot=False):
         """Results visualization.
 
         Args:

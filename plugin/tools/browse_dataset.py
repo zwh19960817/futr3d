@@ -14,7 +14,6 @@ from mmdet3d.core.visualizer import (show_multi_modality_result,
                                      show_seg_result, open3d_vis)
 from plugin.visualizer import show_result
 from mmdet3d.datasets import build_dataset
-from plugin import pipeline
 
 
 def parse_args():
@@ -117,7 +116,7 @@ def show_det_data(input, out_dir, show=False):
     gt_bboxes = input['gt_bboxes_3d']._data.tensor
     gt_labels = input['gt_labels_3d']._data
     if img_metas['box_mode_3d'] != Box3DMode.DEPTH:
-        points, gt_bboxes = to_depth_mode(points, gt_bboxes)
+        # points, gt_bboxes = to_depth_mode(points, gt_bboxes)
         pass
     filename = osp.splitext(osp.basename(img_metas['pts_filename']))[0]
     # gt_bboxes[0,0] = 10

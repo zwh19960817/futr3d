@@ -1,26 +1,48 @@
 plugin = 'plugin/pointpillar'
 
 # key Parameters      >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-batch_size = 16
-num_works = 16
+batch_size = 8
+num_works = 8
 max_epochs = 300
-offset_z = 1.86  # 平移地面至z_ground=0
-# offset_z = 0.0  # 平移地面至z_ground=0
+
+# 数据集相关 >>>
+# # For nuscenes >>
+# dataset_type = 'NuScenesDataset'
 # data_root = '/mnt/data/adt_dataset/nuscenes/'
 # data_root = '/mnt/data/adt_dataset/OpenDataLab___nuScenes/nuscenes/'
-data_root = '/media/zwh/ZWH4T/ZWH/Dataset3d/nuscenes/'
+# data_root = '/media/zwh/ZWH4T/ZWH/Dataset3d/nuscenes/'
+# ann_file_prefix = data_root + 'nuscenes_'  # nuscenes
+# load_dim = 5  # xyzit
+# offset_z = 1.86  # 平移地面至z_ground=0
+# # For nuscenes <<
+
+# For CYW >>
+dataset_type = 'CYWDataset'
+data_root = '/media/zwh/ZWH4T/ZWH/Dataset3d/final/dataset_18xx_final_test/'
+# data_root = '/mnt/data/adt_dataset/dataset_18xx_final_test/'
+ann_file_prefix = 'data_base/'  # cyw
+load_dim = 3 # xyz
+offset_z = 0.0  # 平移地面至z_ground=0   1.86 For Nusencens; 0.0 For CYW
+# For CYW <<
+# 数据集相关 <<<
+
+# 速度相关配置 >>>
+with_velocity = False
+bbox_code_size = 7 + (2 if with_velocity else 0)
+bbox_code_weight = [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
+custom_values = []  # anchor的附加值 如x/y速度
+# 速度相关配置 <<<
 resume_from = None
 # key Parameters      <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
 # Configs of Datasets >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-point_cloud_range = [-20, -20, -2, 20, 60, 4]
+point_cloud_range = [-50, -50, -2, 50, 50, 4]
 voxel_size = [0.25, 0.25, point_cloud_range[5] - point_cloud_range[2]]
 
 # For nuScenes we usually do 10-class detection
 class_names = [
     'car', 'truck', 'bicycle', 'pedestrian'
 ]
-dataset_type = 'NuScenesDataset'
 # Input modality for nuScenes dataset, this is consistent with the submission
 # format which requires the information in input_modality.
 input_modality = dict(
@@ -31,8 +53,9 @@ input_modality = dict(
     use_external=False)
 file_client_args = dict(backend='disk')
 db_sampler = dict(
+    type='DataBaseSamplerf',
     data_root=data_root,
-    info_path=data_root + 'nuscenes_dbinfos_train.pkl',
+    info_path='data_base/dbinfos_train.pkl',
     rate=1.0,
     prepare=dict(
         filter_by_difficulty=[-1],
@@ -50,23 +73,17 @@ db_sampler = dict(
     points_loader=dict(
         type='LoadPointsFromFile',
         coord_type='LIDAR',
-        load_dim=5,
-        use_dim=[0, 1, 2, 3, 4],
+        load_dim=load_dim,
+        use_dim=[0, 1, 2],
         file_client_args=file_client_args))
+
 train_pipeline = [
     dict(
         type='LoadPointsFromFile',
         coord_type='LIDAR',
-        load_dim=5,
-        use_dim=5,
+        load_dim=load_dim,
+        use_dim=3,
         file_client_args=file_client_args),
-    dict(
-        type='LoadPointsFromMultiSweeps',
-        sweeps_num=3,
-        use_dim=[0, 1, 2, 3, 4],
-        file_client_args=file_client_args,
-        pad_empty_sweeps=True,
-        remove_close=True),
     dict(type='LoadAnnotations3D', with_bbox_3d=True, with_label_3d=True),
     dict(type='ObjectSample', db_sampler=db_sampler),
     dict(type='PointsDimFilter', use_dim=[0, 1, 2]),
@@ -92,16 +109,9 @@ test_pipeline = [
     dict(
         type='LoadPointsFromFile',
         coord_type='LIDAR',
-        load_dim=5,
-        use_dim=5,
+        load_dim=load_dim,
+        use_dim=3,
         file_client_args=file_client_args),
-    dict(
-        type='LoadPointsFromMultiSweeps',
-        sweeps_num=3,
-        use_dim=[0, 1, 2, 3, 4],
-        file_client_args=file_client_args,
-        pad_empty_sweeps=True,
-        remove_close=True),
     dict(type='PointsDimFilter', use_dim=[0, 1, 2]),
     dict(type='NormalizeGround', offset_z=offset_z),
     dict(
@@ -110,12 +120,12 @@ test_pipeline = [
         pts_scale_ratio=1,
         flip=False,
         transforms=[
-            dict(
-                type='GlobalRotScaleTrans',
-                rot_range=[0, 0],
-                scale_ratio_range=[1., 1.],
-                translation_std=[0, 0, 0]),
-            dict(type='RandomFlip3D'),
+            # dict(
+            #     type='GlobalRotScaleTrans',
+            #     rot_range=[0, 0],
+            #     scale_ratio_range=[1., 1.],
+            #     translation_std=[0, 0, 0]),
+            # dict(type='RandomFlip3D'),
             dict(
                 type='PointsRangeFilter', point_cloud_range=point_cloud_range),
             dict(
@@ -129,16 +139,9 @@ eval_pipeline = [
     dict(
         type='LoadPointsFromFile',
         coord_type='LIDAR',
-        load_dim=5,
-        use_dim=5,
+        load_dim=load_dim,
+        use_dim=3,
         file_client_args=file_client_args),
-    dict(
-        type='LoadPointsFromMultiSweeps',
-        sweeps_num=3,
-        use_dim=[0, 1, 2, 3, 4],
-        file_client_args=file_client_args,
-        pad_empty_sweeps=True,
-        remove_close=True),
     dict(type='PointsDimFilter', use_dim=[0, 1, 2]),
     dict(type='NormalizeGround', offset_z=offset_z),
     dict(
@@ -154,9 +157,10 @@ data = dict(
     train=dict(
         type=dataset_type,
         data_root=data_root,
-        ann_file=data_root + 'nuscenes_infos_train.pkl',
+        ann_file=ann_file_prefix + 'infos_train.pkl',
         pipeline=train_pipeline,
         classes=class_names,
+        with_velocity=with_velocity,
         modality=input_modality,
         test_mode=False,
         # we use box_type_3d='LiDAR' in kitti and nuscenes dataset
@@ -166,18 +170,20 @@ data = dict(
     val=dict(
         type=dataset_type,
         data_root=data_root,
-        ann_file=data_root + 'nuscenes_infos_val.pkl',
+        ann_file=ann_file_prefix + 'infos_val.pkl',
         pipeline=test_pipeline,
         classes=class_names,
+        with_velocity=with_velocity,
         modality=input_modality,
         test_mode=True,
         box_type_3d='LiDAR'),
     test=dict(
         type=dataset_type,
         data_root=data_root,
-        ann_file=data_root + 'nuscenes_infos_val.pkl',
+        ann_file=ann_file_prefix + 'infos_train.pkl',
         pipeline=test_pipeline,
         classes=class_names,
+        with_velocity=with_velocity,
         modality=input_modality,
         test_mode=True,
         box_type_3d='LiDAR'))
@@ -222,8 +228,8 @@ model = dict(
         anchor_generator=dict(
             type='AlignedAnchor3DRangeGenerator',
             ranges=[
-                [point_cloud_range[0], point_cloud_range[1], -1.8 + offset_z,
-                 point_cloud_range[3], point_cloud_range[4], -1.8 + offset_z]],
+                [point_cloud_range[0], point_cloud_range[1], 0.0,
+                 point_cloud_range[3], point_cloud_range[4], 0.0]],
             scales=[1, 2, 4],
             sizes=[
                 [4.60718145, 1.95017717, 1.72270761],  # car
@@ -231,13 +237,13 @@ model = dict(
                 [1.68452161, 0.60058911, 1.27192197],  # bicycle
                 [0.7256437, 0.66344886, 1.75748069],  # pedestrian
             ],
-            custom_values=[0, 0],
+            custom_values=custom_values,
             rotations=[0, 1.57],
             reshape_out=True),
         assigner_per_size=False,
         diff_rad_by_sin=True,
         dir_offset=-0.7854,  # -pi / 4
-        bbox_coder=dict(type='DeltaXYZWLHRBBoxCoder', code_size=9),
+        bbox_coder=dict(type='DeltaXYZWLHRBBoxCoder', code_size=bbox_code_size),
         loss_cls=dict(
             type='FocalLoss',
             use_sigmoid=True,
@@ -258,7 +264,7 @@ model = dict(
                 min_pos_iou=0.3,
                 ignore_iof_thr=-1),
             allowed_border=0,
-            code_weight=[1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 0.2, 0.2],
+            code_weight=bbox_code_weight,
             pos_weight=-1,
             debug=False)),
     test_cfg=dict(
@@ -267,7 +273,7 @@ model = dict(
             nms_across_levels=False,
             nms_pre=1000,
             nms_thr=0.2,
-            score_thr=0.15,
+            score_thr=0.1,
             min_bbox_size=0,
             max_num=500)))
 # Configs of Model    <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
@@ -290,10 +296,10 @@ momentum_config = None
 
 
 # Configs of Others    >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-evaluation = dict(interval=24, pipeline=eval_pipeline)
+evaluation = dict(interval=52, pipeline=eval_pipeline)
 checkpoint_config = dict(interval=5, max_keep_ckpts=3)
 log_config = dict(
-    interval=50,
+    interval=20,
     hooks=[
         dict(type='TextLoggerHook'),
         dict(type='TensorboardLoggerHook')

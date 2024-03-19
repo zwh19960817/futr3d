@@ -13,7 +13,7 @@ from mmcv.ops.multi_scale_deform_attn import MultiScaleDeformableAttnFunction
 from mmcv.runner.base_module import BaseModule
 from mmcv.utils import IS_CUDA_AVAILABLE, IS_MLU_AVAILABLE
 from mmdet.models.utils.builder import TRANSFORMER
-
+from zwh.ZMultiScaleDeformableAttention import multi_scale_deformable_attn_pytorch
 
 def inverse_sigmoid(x, eps=1e-5):
     """Inverse function of sigmoid.
@@ -288,6 +288,8 @@ class FUTR3DAttention(BaseModule):
                     f' 2, but get {reference_points.shape[-1]} instead.')
             if ((IS_CUDA_AVAILABLE and value.is_cuda)
                     or (IS_MLU_AVAILABLE and value.is_mlu)):
+                # output2 = multi_scale_deformable_attn_pytorch(
+                #     value, spatial_shapes, sampling_locations, attention_weights)
                 output = MultiScaleDeformableAttnFunction.apply(
                     value, spatial_shapes, level_start_index, sampling_locations,
                     attention_weights, self.im2col_step)

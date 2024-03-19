@@ -4,7 +4,9 @@ from .pillarnet import PillarNet
 from mmdet3d.core import (Box3DMode, Coord3DMode)
 from mmcv.parallel import DataContainer as DC
 from os import path as osp
-from mmdet3d.core import show_result
+# from mmdet3d.core import show_result
+from plugin.visualizer import show_result
+
 
 @DETECTORS.register_module()
 class PointPillars(MVXTwoStageDetector):
@@ -87,9 +89,13 @@ class PointPillars(MVXTwoStageDetector):
                                                    Coord3DMode.DEPTH)
                 pred_bboxes = Box3DMode.convert(pred_bboxes, box_mode_3d,
                                                 Box3DMode.DEPTH)
+                if box_mode_3d == Box3DMode.LIDAR and pred_bboxes.tensor.shape[1] == 9:  # 注意速度也要变换
+                    pred_bboxes.tensor = pred_bboxes.tensor[:, [0, 1, 2, 3, 4, 5, 6, 8, 7]]
+                    pred_bboxes.tensor[:, 7:8] = -pred_bboxes.tensor[:, 7:8]
             elif box_mode_3d != Box3DMode.DEPTH:
                 ValueError(
                     f'Unsupported box_mode_3d {box_mode_3d} for conversion!')
 
             pred_bboxes = pred_bboxes.tensor.cpu().numpy()
-            show_result(points, None, pred_bboxes, out_dir, file_name, show, pred_labels=pred_labels)
+            show_result(points, None, pred_bboxes, out_dir, file_name, show, show_yaw=True, pred_labels=pred_labels,
+                        show_speed=True)

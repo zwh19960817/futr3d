@@ -1,3 +1,5 @@
+# FUTR3d环境参考:
+https://zhuanlan.zhihu.com/p/671956617
 #数据集
 ##nuscenes pipeline
 ### 新增pipeline
