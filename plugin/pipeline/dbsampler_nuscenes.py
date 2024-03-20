@@ -79,7 +79,7 @@ class BatchSampler:
 
 
 @OBJECTSAMPLERS.register_module()
-class DataBaseSamplerf(object):
+class DataBaseSamplerNuscenes(object):
     """Class for sampling data from the ground truth database.
 
     Args:
@@ -101,8 +101,7 @@ class DataBaseSamplerf(object):
                  rate,
                  prepare,
                  sample_groups,
-                 with_velocity=False,
-                 selectmode='all',
+                 with_velocity=True,
                  classes=None,
                  bbox_code_size=None,
                  points_loader=dict(
@@ -116,14 +115,25 @@ class DataBaseSamplerf(object):
         self.info_path = info_path
         self.rate = rate
         self.prepare = prepare
+        self.with_velocity = with_velocity
         self.classes = classes
-        self.selectmode = selectmode
         self.cat2label = {name: i for i, name in enumerate(classes)}
         self.label2cat = {i: name for i, name in enumerate(classes)}
         self.points_loader = mmcv.build_from_cfg(points_loader, PIPELINES)
         self.file_client = mmcv.FileClient(**file_client_args)
 
-        db_infos = self.load_db()
+        # load data base infos
+        if hasattr(self.file_client, 'get_local_path'):
+            with self.file_client.get_local_path(info_path) as local_path:
+                # loading data from a file-like object needs file format
+                db_infos = mmcv.load(open(local_path, 'rb'), file_format='pkl')
+        else:
+            warnings.warn(
+                'The used MMCV version does not have get_local_path. '
+                f'We treat the {info_path} as local paths and it '
+                'might cause errors if the path is not a local path. '
+                'Please use MMCV>= 1.3.16 if you meet errors.')
+            db_infos = mmcv.load(info_path)
 
         # filter database infos
         from mmdet3d.utils import get_root_logger
@@ -164,47 +174,6 @@ class DataBaseSamplerf(object):
             self.sampler_dict[k] = BatchSampler(v, k, shuffle=True)
         # TODO: No group_sampling currently
 
-    def load_db(self):
-        dataset_paths = self.get_all_dataset_path()
-        db_infos = dict()
-        for dataset in dataset_paths:
-            info_path = os.path.join(dataset, self.info_path)
-            assert os.path.exists(info_path)
-            data = mmcv.load(info_path, file_format='pkl')
-            for cls, samples in data.items():
-                if cls in db_infos.keys():
-                    db_infos[cls].extend(samples)
-                else:
-                    db_infos[cls] = samples
-        return db_infos
-
-    def get_all_dataset_path(self):
-        """
-        load paths that prefix is '__' in root_path, and save sample info into data_infos
-        """
-        dataset_paths = []
-        datasets = os.listdir(self.data_root)
-        for dataset in datasets:
-            if "__" == dataset[:2]:  # 数据集以"__"开头
-                if self.selectmode == 'all':  # 全选模式,数据集全选
-                    pass
-                elif self.selectmode == 'include':  # include模式,选择目标数据集
-                    if dataset in self.selected:
-                        pass
-                    else:
-                        continue
-                elif self.selectmode == 'except':  # except,剔除目标数据集
-                    if dataset in self.selected:
-                        continue
-                    else:
-                        pass
-                else:
-                    exit('数据选择模式{}错误'.format(self.selectmode))
-
-                dataset_path = os.path.join(self.data_root, dataset)
-                dataset_paths.append(dataset_path)
-        return dataset_paths
-
     @staticmethod
     def filter_by_difficulty(db_infos, removed_difficulty):
         """Filter ground truths by difficulties.
@@ -240,26 +209,11 @@ class DataBaseSamplerf(object):
             min_num = int(min_num)
             if min_num > 0:
                 filtered_infos = []
-                if name not in db_infos.keys():
-                    continue
                 for info in db_infos[name]:
                     if info['num_points_in_gt'] >= min_num:
                         filtered_infos.append(info)
                 db_infos[name] = filtered_infos
         return db_infos
-
-    @staticmethod
-    def filter_by_near_points(db_infos, keep_range):
-        new_db_infos = {}
-        for key, dinfos in db_infos.items():
-            lis = []
-            for info in dinfos:
-                if(keep_range[0] < info['box3d_lidar'][0] and info['box3d_lidar'][0] < keep_range[2]
-                        and keep_range[1] < info['box3d_lidar'][1] and info['box3d_lidar'][1] < keep_range[3]):
-                    lis.append(info)
-            if len(lis)>0:
-                new_db_infos[key] = lis
-        return new_db_infos
 
     def sample_all(self, gt_bboxes, gt_labels, img=None, ground_plane=None):
         """Sampling all categories of bboxes.
@@ -345,8 +299,6 @@ class DataBaseSamplerf(object):
                 for i, s_points in enumerate(s_points_list):
                     s_points.tensor[:, 2].sub_(dz[i])
 
-            sampled_gt_bboxes[:, 2] = sampled_gt_bboxes[:, 2] - 0.5 * sampled_gt_bboxes[:, 5]
-
             ret = {
                 'gt_labels_3d':
                     gt_labels,
@@ -372,10 +324,10 @@ class DataBaseSamplerf(object):
         Returns:
             list[dict]: Valid samples after collision test.
         """
-        valid_samples = []
-        if name not in self.sampler_dict:
-            return valid_samples
         sampled = self.sampler_dict[name].sample(num)
+        if not self.with_velocity:
+            for sampled_single in sampled:
+                sampled_single['box3d_lidar'] = sampled_single['box3d_lidar'][:7]
         sampled = copy.deepcopy(sampled)
         num_gt = gt_bboxes.shape[0]
         num_sampled = len(sampled)
@@ -394,6 +346,7 @@ class DataBaseSamplerf(object):
         diag = np.arange(total_bv.shape[0])
         coll_mat[diag, diag] = False
 
+        valid_samples = []
         for i in range(num_gt, num_gt + num_sampled):
             if coll_mat[i].any():
                 coll_mat[i] = False

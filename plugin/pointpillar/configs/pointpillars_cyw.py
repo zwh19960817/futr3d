@@ -1,29 +1,31 @@
 plugin = 'plugin/pointpillar'
 
 # key Parameters      >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-batch_size = 8
-num_works = 8
-max_epochs = 300
+batch_size = 16
+num_works = 16
+max_epochs = 500
 
 # 数据集相关 >>>
-# # For nuscenes >>
-# dataset_type = 'NuScenesDataset'
-# data_root = '/mnt/data/adt_dataset/nuscenes/'
-# data_root = '/mnt/data/adt_dataset/OpenDataLab___nuScenes/nuscenes/'
+# For nuscenes >>
+dataset_type = 'NuScenesDataset'
+# data_root = '/mnt/data/adt_dataset/nuscenes/' # mini in server
+data_root = '/mnt/data/adt_dataset/OpenDataLab___nuScenes/nuscenes/' # full in server
 # data_root = '/media/zwh/ZWH4T/ZWH/Dataset3d/nuscenes/'
-# ann_file_prefix = data_root + 'nuscenes_'  # nuscenes
-# load_dim = 5  # xyzit
-# offset_z = 1.86  # 平移地面至z_ground=0
-# # For nuscenes <<
+DataBaseSampler = 'DataBaseSamplerNuscenes'
+ann_file_prefix = data_root + 'nuscenes_'  # nuscenes
+load_dim = 5  # xyzit
+offset_z = 1.86  # 平移地面至z_ground=0
+# For nuscenes <<
 
-# For CYW >>
-dataset_type = 'CYWDataset'
-data_root = '/media/zwh/ZWH4T/ZWH/Dataset3d/final/dataset_18xx_final_test/'
-# data_root = '/mnt/data/adt_dataset/dataset_18xx_final_test/'
-ann_file_prefix = 'data_base/'  # cyw
-load_dim = 3 # xyz
-offset_z = 0.0  # 平移地面至z_ground=0   1.86 For Nusencens; 0.0 For CYW
-# For CYW <<
+# # For CYW >>
+# dataset_type = 'CYWDataset'
+# data_root = '/media/zwh/ZWH4T/ZWH/Dataset3d/final/dataset_18xx_final_test'
+# # data_root = '/mnt/data/adt_dataset/dataset_18xx_final_test/'
+# DataBaseSampler = 'DataBaseSamplerf'
+# ann_file_prefix = 'data_base/'  # cyw
+# load_dim = 3  # xyz
+# offset_z = 0.0  # 平移地面至z_ground=0   1.86 For Nusencens; 0.0 For CYW
+# # For CYW <<
 # 数据集相关 <<<
 
 # 速度相关配置 >>>
@@ -36,12 +38,12 @@ resume_from = None
 # key Parameters      <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
 # Configs of Datasets >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-point_cloud_range = [-50, -50, -2, 50, 50, 4]
+point_cloud_range = [-50, -50, -3, 50, 50, 5]
 voxel_size = [0.25, 0.25, point_cloud_range[5] - point_cloud_range[2]]
 
 # For nuScenes we usually do 10-class detection
 class_names = [
-    'car', 'truck', 'bicycle', 'pedestrian'
+    'car', 'pedestrian'
 ]
 # Input modality for nuScenes dataset, this is consistent with the submission
 # format which requires the information in input_modality.
@@ -53,12 +55,17 @@ input_modality = dict(
     use_external=False)
 file_client_args = dict(backend='disk')
 db_sampler = dict(
-    type='DataBaseSamplerf',
+    type=DataBaseSampler,
     data_root=data_root,
-    info_path='data_base/dbinfos_train.pkl',
+    info_path=ann_file_prefix + 'dbinfos_train.pkl',
     rate=1.0,
+    with_velocity=with_velocity,
     prepare=dict(
         filter_by_difficulty=[-1],
+        filter_by_near_points=[0.5 * point_cloud_range[0],
+                               0.5 * point_cloud_range[1],
+                               0.5 * point_cloud_range[3],
+                               0.5 * point_cloud_range[4]],
         filter_by_min_points=dict(
             car=5,
             truck=5,
@@ -66,10 +73,10 @@ db_sampler = dict(
             pedestrian=5)),
     classes=class_names,
     sample_groups=dict(
-        car=2,
+        car=5,
         truck=3,
         bicycle=6,
-        pedestrian=2),
+        pedestrian=5),
     points_loader=dict(
         type='LoadPointsFromFile',
         coord_type='LIDAR',
@@ -85,14 +92,14 @@ train_pipeline = [
         use_dim=3,
         file_client_args=file_client_args),
     dict(type='LoadAnnotations3D', with_bbox_3d=True, with_label_3d=True),
-    dict(type='ObjectSample', db_sampler=db_sampler),
+    # dict(type='ObjectSample', db_sampler=db_sampler),
     dict(type='PointsDimFilter', use_dim=[0, 1, 2]),
     dict(type='NormalizeGround', offset_z=offset_z),
     dict(
         type='GlobalRotScaleTrans',
         rot_range=[-0.3925 * 2, 0.3925 * 2],
         scale_ratio_range=[0.9, 1.1],
-        translation_std=[0.5, 0.5, 0.5]),
+        translation_std=[1.5, 1.5, 0.5]),
     dict(
         type='RandomFlip3D',
         sync_2d=False,
@@ -120,12 +127,12 @@ test_pipeline = [
         pts_scale_ratio=1,
         flip=False,
         transforms=[
-            # dict(
-            #     type='GlobalRotScaleTrans',
-            #     rot_range=[0, 0],
-            #     scale_ratio_range=[1., 1.],
-            #     translation_std=[0, 0, 0]),
-            # dict(type='RandomFlip3D'),
+            dict(
+                type='GlobalRotScaleTrans',
+                rot_range=[0, 0],
+                scale_ratio_range=[1., 1.],
+                translation_std=[0, 0, 0]),
+            dict(type='RandomFlip3D'),
             dict(
                 type='PointsRangeFilter', point_cloud_range=point_cloud_range),
             dict(
@@ -281,7 +288,7 @@ model = dict(
 
 # Configs of Schedules >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 runner = dict(type='EpochBasedRunner', max_epochs=max_epochs)
-workflow = [('train', 5), ('val', 1)]
+workflow = [('train', 1), ('val', 1)]
 optimizer = dict(type='AdamW', lr=0.001, weight_decay=0.01)
 # max_norm=10 is better for SECOND
 optimizer_config = dict(grad_clip=dict(max_norm=35, norm_type=2))
@@ -296,10 +303,10 @@ momentum_config = None
 
 
 # Configs of Others    >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-evaluation = dict(interval=52, pipeline=eval_pipeline)
-checkpoint_config = dict(interval=5, max_keep_ckpts=3)
+evaluation = dict(interval=2, pipeline=eval_pipeline)
+checkpoint_config = dict(interval=2, max_keep_ckpts=3)
 log_config = dict(
-    interval=20,
+    interval=50,
     hooks=[
         dict(type='TextLoggerHook'),
         dict(type='TensorboardLoggerHook')
