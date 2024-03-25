@@ -3,9 +3,10 @@ import tempfile
 from os import path as osp
 import mmcv
 import numpy as np
+from tabulate import tabulate
 import pyquaternion
 from nuscenes.utils.data_classes import Box as NuScenesBox
-
+from plugin.evaluation import CYWEvaluation
 from mmdet3d.core import show_result
 from mmdet3d.core.bbox import Box3DMode, Coord3DMode, LiDARInstance3DBoxes
 from mmdet3d.datasets.builder import DATASETS
@@ -126,7 +127,7 @@ class CYWDataset(Custom3DDatasetF):
                  test_mode=False,
                  eval_version='detection_cvpr_2019',
                  use_valid_flag=False):
-        assert selectmode in ['all','include','except'], 'selectmode should be in [all,include,except]'
+        assert selectmode in ['all', 'include', 'except'], 'selectmode should be in [all,include,except]'
         self.selectmode = selectmode
         self.load_interval = load_interval
         self.use_valid_flag = use_valid_flag
@@ -140,6 +141,9 @@ class CYWDataset(Custom3DDatasetF):
             filter_empty_gt=filter_empty_gt,
             test_mode=test_mode)
 
+        iou_thresholds = np.arange(1, 20) * 0.05
+        # iou_thresholds = [0.3, 0.6, 0.9]
+        self.cym_eval = CYWEvaluation(iou_thresholds, classes)
         self.with_velocity = with_velocity
         self.eval_version = eval_version
         from nuscenes.eval.detection.config import config_factory
@@ -152,7 +156,6 @@ class CYWDataset(Custom3DDatasetF):
                 use_map=False,
                 use_external=False,
             )
-
 
     def get_cat_ids(self, idx):
         """Get category distribution of single scene.
@@ -177,7 +180,6 @@ class CYWDataset(Custom3DDatasetF):
             if name in self.CLASSES:
                 cat_ids.append(self.cat2id[name])
         return cat_ids
-
 
     def get_data_info(self, index):
         """Get data info according to the given index.
@@ -204,7 +206,7 @@ class CYWDataset(Custom3DDatasetF):
             sample_idx=info[0],
             pts_filename=osp.join(self.data_root, info[1]['lidar']['path']),
             sweeps=[],
-            timestamp= info[0] / 1e3,# ms to s
+            timestamp=info[0] / 1e3,  # ms to s
         )
         if self.modality['use_radar']:
             input_dict['radar'] = osp.join(self.data_root, info[1]['radar']['path'])
@@ -264,7 +266,8 @@ class CYWDataset(Custom3DDatasetF):
         """
         info = self.data_infos[index]
         # filter out bbox containing no points
-        gt_bboxes_3d = np.concatenate((info[1]['label']['location'],info[1]['label']['dimensions'],info[1]['label']['rotation_y']),axis=1)
+        gt_bboxes_3d = np.concatenate(
+            (info[1]['label']['location'], info[1]['label']['dimensions'], info[1]['label']['rotation_y']), axis=1)
         gt_names_3d = info[1]['label']['name']
         gt_labels_3d = []
         for cat in gt_names_3d:
@@ -495,22 +498,60 @@ class CYWDataset(Custom3DDatasetF):
         Returns:
             dict[str, float]: Results of each evaluation metric.
         """
-        result_files, tmp_dir = self.format_results(results, jsonfile_prefix)
+        assert len(results) == len(self.data_infos)
+        gt_boxes = []
+        for image_id, data_info in enumerate(self.data_infos):
+            labels = data_info[1]['label']
+            for box_id, name in enumerate(labels['name']):
+                if name in self.CLASSES:
+                    gt_box = np.zeros(shape=(9))
+                    gt_box[0] = image_id
+                    gt_box[1] = self.CLASSES.index(name)
+                    gt_box[2:5] = labels['location'][box_id]  # 注意此时z值为底部高度,但是没影响
+                    gt_box[5:8] = labels['dimensions'][box_id]
+                    gt_box[8:9] = labels['rotation_y'][box_id]
+                    gt_boxes.append(gt_box)
+        gt_boxes = np.array(gt_boxes)
 
-        if isinstance(result_files, dict):
-            results_dict = dict()
-            for name in result_names:
-                print('Evaluating bboxes of {}'.format(name))
-                ret_dict = self._evaluate_single(result_files[name])
-            results_dict.update(ret_dict)
-        elif isinstance(result_files, str):
-            results_dict = self._evaluate_single(result_files)
+        pred_boxes = []
+        for i, result in enumerate(results):
+            cls_in_pic = np.array(result['pts_bbox']['labels_3d']).reshape((-1, 1))
+            id_in_pic = (np.ones_like(cls_in_pic) * i).reshape((-1, 1))
+            boxes_in_pic = np.array(result['pts_bbox']['boxes_3d'].tensor)
+            score_in_pic = np.array(result['pts_bbox']['scores_3d']).reshape((-1, 1))
+            pred_box = np.concatenate((id_in_pic, cls_in_pic, boxes_in_pic, score_in_pic), axis=1)
+            pred_boxes.append(pred_box)
+        pred_boxes = np.concatenate(pred_boxes, axis=0)
 
-        if tmp_dir is not None:
-            tmp_dir.cleanup()
+        mAP_results = self.cym_eval.eval(pred_boxes=pred_boxes,
+                                         gt_boxes=gt_boxes,
+                                         sample_size=len(results),
+                                         save_dir=out_dir,
+                                         save_detail=False)
 
-        if show or out_dir:
-            self.show(results, out_dir, show=show, pipeline=pipeline)
+        results_dict = {}
+        print('Evaluation of CYW dataset')
+        headers = ['iou']
+        table_data = []
+        for cls in self.CLASSES:
+            headers.append(cls + '(AP)')
+        headers.append('mAP')
+        for iou, data in mAP_results.items():
+            row = [str(iou)]
+            for cls, (ap, gt_num) in data['AP'].items():
+                row.append(ap)
+                results_dict['IOU:{}/CLS:{}/AP'.format(iou, cls)] = ap
+                results_dict['IOU:{}/CLS:{}/GtNums'.format(iou, cls)] = gt_num
+            row.append(data['mAP'])
+            results_dict['IOU:{}/mAP'.format(iou)] = data['mAP']
+            table_data.append(row)
+        table_str = tabulate(table_data, headers=headers, tablefmt='pretty')
+        print(table_str)
+        # 将表格字符串保存到文件中
+        if out_dir is not None:
+            with open(out_dir + 'cyw_evaluation.txt', 'w', encoding='utf-8') as f:
+                f.write(table_str)
+            print("Table saved to cyw_evaluation.txt in {}".format(out_dir))
         return results_dict
 
     def _build_default_pipeline(self):

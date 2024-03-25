@@ -29,5 +29,17 @@ plugin/pointpillar/configs/pillar_ori.py
 --dataset_fun 选择数据集(train/val/test)
 
 #模型
+#测试
+## CYW评测
+配置文件:
+> evaluation = dict(interval=10, pipeline=eval_pipeline, out_dir='data/tmp/')
+
+interval仅在训练时有用,输出的评测信息在$out_dir中
+执行:
+```
+tools/test.py
+plugin/pointpillar/configs/pointpillars_cyw.py
+work_dirs/epoch_xxx.pth --eval
+```
 ##注意事项
 hand调用Voxelization时候注意别用成了mmcv的,否则输出的维度顺序对不上

@@ -1,3 +1,4 @@
+import torch
 from mmdet3d.models.builder import DETECTORS
 from mmdet3d.models.detectors.mvx_two_stage import MVXTwoStageDetector
 from .pillarnet import PillarNet
@@ -36,6 +37,15 @@ class PointPillars(MVXTwoStageDetector):
         self.use_radar = use_radar
         self.use_grid_mask = use_grid_mask
         self.hand = PillarNet(**hand)
+
+    # # 用于输出两个onnx
+    # def forward(self, input: torch.Tensor, part: str = 'rpn_backbone'):
+    #     if part == 'vfe_model':
+    #         return self.hand.pillarencoder.pfn_layer(input)
+    #     elif part == 'rpn_backbone':
+    #         return self.pts_bbox_head(self.pts_neck(self.pts_backbone(input)))
+    #     else:
+    #         raise TypeError('{} should be in [vfe_model, rpn_backbone]')
 
     def extract_pts_feat(self, pts, img_feats, img_metas):
         """Extract features of points."""

@@ -1,31 +1,32 @@
 plugin = 'plugin/pointpillar'
 
 # key Parameters      >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-batch_size = 16
-num_works = 16
-max_epochs = 500
+batch_size = 1
+num_works = 4
+max_epochs = 205
 
 # 数据集相关 >>>
-# For nuscenes >>
-dataset_type = 'NuScenesDataset'
-# data_root = '/mnt/data/adt_dataset/nuscenes/' # mini in server
-data_root = '/mnt/data/adt_dataset/OpenDataLab___nuScenes/nuscenes/' # full in server
-# data_root = '/media/zwh/ZWH4T/ZWH/Dataset3d/nuscenes/'
-DataBaseSampler = 'DataBaseSamplerNuscenes'
-ann_file_prefix = data_root + 'nuscenes_'  # nuscenes
-load_dim = 5  # xyzit
-offset_z = 1.86  # 平移地面至z_ground=0
-# For nuscenes <<
+# # For nuscenes >>
+# dataset_type = 'NuScenesDataset'
+# # data_root = '/mnt/data/adt_dataset/nuscenes/' # mini in server
+# # data_root = '/mnt/data/adt_dataset/OpenDataLab___nuScenes/nuscenes/' # full in server
+# data_root = '/media/zwh/ZWH4T/ZWH/Dataset3d/nuscenes/' # mini in local
+# DataBaseSampler = 'DataBaseSamplerNuscenes'
+# ann_file_prefix = data_root + 'nuscenes_'  # nuscenes
+# load_dim = 5  # xyzit
+# offset_z = 1.86  # 平移地面至z_ground=0
+# # For nuscenes <<
 
-# # For CYW >>
-# dataset_type = 'CYWDataset'
-# data_root = '/media/zwh/ZWH4T/ZWH/Dataset3d/final/dataset_18xx_final_test'
-# # data_root = '/mnt/data/adt_dataset/dataset_18xx_final_test/'
-# DataBaseSampler = 'DataBaseSamplerf'
-# ann_file_prefix = 'data_base/'  # cyw
-# load_dim = 3  # xyz
-# offset_z = 0.0  # 平移地面至z_ground=0   1.86 For Nusencens; 0.0 For CYW
-# # For CYW <<
+# For CYW >>
+dataset_type = 'CYWDataset'
+data_root = '/media/zwh/ZWH4T/ZWH/Dataset3d/final/dataset_training'
+# data_root = '/media/zwh/ZWH4T/ZWH/Dataset3d/final/dataset_18xx_final/'
+# data_root = '/mnt/data/adt_dataset/cyw_mix'
+DataBaseSampler = 'DataBaseSamplerf'
+ann_file_prefix = 'data_base/'  # cyw
+load_dim = 3  # xyz
+offset_z = 0.0  # 平移地面至z_ground=0   1.86 For Nusencens; 0.0 For CYW
+# For CYW <<
 # 数据集相关 <<<
 
 # 速度相关配置 >>>
@@ -34,7 +35,8 @@ bbox_code_size = 7 + (2 if with_velocity else 0)
 bbox_code_weight = [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
 custom_values = []  # anchor的附加值 如x/y速度
 # 速度相关配置 <<<
-resume_from = None
+# resume_from = None
+resume_from = 'work_dirs/epoch_200.pth'
 # key Parameters      <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
 # Configs of Datasets >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
@@ -62,20 +64,20 @@ db_sampler = dict(
     with_velocity=with_velocity,
     prepare=dict(
         filter_by_difficulty=[-1],
-        filter_by_near_points=[0.5 * point_cloud_range[0],
-                               0.5 * point_cloud_range[1],
-                               0.5 * point_cloud_range[3],
-                               0.5 * point_cloud_range[4]],
+        # filter_by_near_points=[0.5 * point_cloud_range[0],
+        #                        0.5 * point_cloud_range[1],
+        #                        0.5 * point_cloud_range[3],
+        #                        0.5 * point_cloud_range[4]],
         filter_by_min_points=dict(
             car=5,
-            truck=5,
-            bicycle=5,
+            # truck=5,
+            # bicycle=5,
             pedestrian=5)),
     classes=class_names,
     sample_groups=dict(
         car=5,
-        truck=3,
-        bicycle=6,
+        # truck=3,
+        # bicycle=6,
         pedestrian=5),
     points_loader=dict(
         type='LoadPointsFromFile',
@@ -187,7 +189,7 @@ data = dict(
     test=dict(
         type=dataset_type,
         data_root=data_root,
-        ann_file=ann_file_prefix + 'infos_train.pkl',
+        ann_file=ann_file_prefix + 'infos_val.pkl',
         pipeline=test_pipeline,
         classes=class_names,
         with_velocity=with_velocity,
@@ -288,7 +290,7 @@ model = dict(
 
 # Configs of Schedules >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 runner = dict(type='EpochBasedRunner', max_epochs=max_epochs)
-workflow = [('train', 1), ('val', 1)]
+workflow = [('train', 5), ('val', 1)]
 optimizer = dict(type='AdamW', lr=0.001, weight_decay=0.01)
 # max_norm=10 is better for SECOND
 optimizer_config = dict(grad_clip=dict(max_norm=35, norm_type=2))
@@ -303,10 +305,10 @@ momentum_config = None
 
 
 # Configs of Others    >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-evaluation = dict(interval=2, pipeline=eval_pipeline)
-checkpoint_config = dict(interval=2, max_keep_ckpts=3)
+evaluation = dict(interval=201, pipeline=eval_pipeline, out_dir='work_dirs/tmp/')
+checkpoint_config = dict(interval=5, max_keep_ckpts=5)
 log_config = dict(
-    interval=50,
+    interval=5,
     hooks=[
         dict(type='TextLoggerHook'),
         dict(type='TensorboardLoggerHook')
