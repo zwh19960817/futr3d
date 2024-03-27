@@ -3,3 +3,4 @@ from .ppneck import *
 from .single_stage import *
 from .ssd3d_head import *
 from .pointpillars import *
+from .pointpillars_radar import *

@@ -9,6 +9,7 @@ from mmdet.datasets.builder import PIPELINES
 from mmdet.datasets.pipelines import RandomFlip
 from mmcv.utils import build_from_cfg
 from mmdet3d.core.points.lidar_points import LiDARPoints
+from plugin.futr3d import RadarPoints
 
 
 @PIPELINES.register_module()
@@ -22,11 +23,23 @@ class NormalizeGround(object):
 
     def __call__(self, results):
         # 注意camera2lidar外参之后也要改动
-        points = results['points'].tensor.numpy()
-        points[:, 2] += self.offset_z
-        points = LiDARPoints(points,
+        if 'points' in results:
+            points = results['points'].tensor.numpy()
+            points[:, 2] += self.offset_z
+
+            points = LiDARPoints(points,
                              points_dim=points.shape[-1])
-        results['points'] = points
+            results['points'] = points
+
+        if 'radar' in results:
+            radar_pts = results['radar'].tensor.numpy()
+            radar_pts[:, 2] += self.offset_z
+
+            radar_pts = RadarPoints(radar_pts,
+                                 points_dim=radar_pts.shape[-1])
+            results['radar'] = radar_pts
+
+
         if 'gt_bboxes_3d' in results:
             gt_bboxes = results['gt_bboxes_3d'].tensor
             gt_bboxes[:, 2] += torch.Tensor([self.offset_z])
