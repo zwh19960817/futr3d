@@ -2,11 +2,12 @@ from mmdet3d.models import builder
 from mmdet3d.models.builder import DETECTORS
 from mmdet3d.models.detectors.mvx_two_stage import MVXTwoStageDetector
 from .pillarnet import PillarNet
-from mmdet3d.core import (Box3DMode, Coord3DMode)
+from mmdet3d.core import (Box3DMode, Coord3DMode, bbox3d2result)
 from mmcv.parallel import DataContainer as DC
 from os import path as osp
 # from mmdet3d.core import show_result
 from plugin.visualizer import show_result
+from mmcv.runner import auto_fp16
 
 
 @DETECTORS.register_module()
@@ -21,7 +22,6 @@ class PointPillars_Radar(MVXTwoStageDetector):
                  pts_bbox_head=None,
                  radar_pts_backbone=None,
                  radar_pts_neck=None,
-                 radar_pts_bbox_head=None,
                  img_backbone=None,
                  img_neck=None,
                  img_roi_head=None,
@@ -47,12 +47,12 @@ class PointPillars_Radar(MVXTwoStageDetector):
             self.radar_pts_backbone = builder.build_backbone(radar_pts_backbone)
         if radar_pts_neck is not None:
             self.radar_pts_neck = builder.build_neck(radar_pts_neck)
-        if radar_pts_bbox_head:
+        if pts_bbox_head:
             pts_train_cfg = train_cfg.pts if train_cfg else None
-            radar_pts_bbox_head.update(train_cfg=pts_train_cfg)
+            pts_bbox_head.update(train_cfg=pts_train_cfg)
             pts_test_cfg = test_cfg.pts if test_cfg else None
-            radar_pts_bbox_head.update(test_cfg=pts_test_cfg)
-            self.radar_pts_bbox_head = builder.build_head(radar_pts_bbox_head)
+            pts_bbox_head.update(test_cfg=pts_test_cfg)
+            self.pts_bbox_head = builder.build_head(pts_bbox_head)
 
 
         if img_backbone:
@@ -68,6 +68,12 @@ class PointPillars_Radar(MVXTwoStageDetector):
     def with_radar_pts_neck(self):
         """bool: Whether the detector has a neck in 3D detector branch."""
         return hasattr(self, 'radar_pts_neck') and self.radar_pts_neck is not None
+
+    @property
+    def with_pts_bbox(self):
+        """bool: Whether the detector has a 3D box head."""
+        return hasattr(self,
+                       'pts_bbox_head') and self.pts_bbox_head is not None
 
     def extract_img_feat(self, img, img_metas):
         """Extract features of images."""
@@ -88,14 +94,6 @@ class PointPillars_Radar(MVXTwoStageDetector):
         if self.with_img_neck:
             img_feats = self.img_neck(img_feats)
         return img_feats
-
-    # def extract_radar_pts_feat(self, radar_pts):
-    #     """Extract features of points."""
-    #     x = self.radar_hand(radar_pts)
-    #     x = self.radar_pts_backbone(x)
-    #     if self.with_radar_pts_neck:
-    #         x = self.radar_pts_neck(x)
-    #     return x
 
     def extract_pts_feat(self, radar_pts, img_feats, img_metas):
         """Extract features of points."""
@@ -148,15 +146,11 @@ class PointPillars_Radar(MVXTwoStageDetector):
             dict: Losses of different branches.
         """
 
-        # radar_pts_feats = self.extract_radar_pts_feat(radar_pts=radar)
-
         img_feats, radar_pts_feats = self.extract_feat(radar_pts=radar,
                                                        img=img,
                                                        img_metas=img_metas)
         losses = dict()
 
-        # losses_pts = self.forward_pts_train(pts_feats, radar_pts_feats, gt_bboxes_3d,
-        #                                     gt_labels_3d, gt_bboxes_ignore)
         if radar_pts_feats:
             losses_pts = self.forward_pts_train(radar_pts_feats, gt_bboxes_3d,
                                                 gt_labels_3d, img_metas,
@@ -165,11 +159,6 @@ class PointPillars_Radar(MVXTwoStageDetector):
 
         return losses
 
-        # losses_pts = self.forward_pts_train(radar_pts_feats, gt_bboxes_3d,
-        #                                     gt_labels_3d, gt_bboxes_ignore)
-        # losses.update(losses_pts)
-
-        # return losses
     def forward_pts_train(self,
                           radar_pts_feats,
                           gt_bboxes_3d,
@@ -191,11 +180,53 @@ class PointPillars_Radar(MVXTwoStageDetector):
         Returns:
             dict: Losses of each branch.
         """
-        outs = self.radar_pts_bbox_head(radar_pts_feats)
+        outs = self.pts_bbox_head(radar_pts_feats)
         loss_inputs = outs + (gt_bboxes_3d, gt_labels_3d, img_metas)
-        losses = self.radar_pts_bbox_head.loss(
+        losses = self.pts_bbox_head.loss(
             *loss_inputs, gt_bboxes_ignore=gt_bboxes_ignore)
         return losses
+
+    def forward_test(self, points, radar, img_metas, img=None, **kwargs):
+        """
+        Args:
+            points (list[torch.Tensor]): the outer list indicates test-time
+                augmentations and inner torch.Tensor should have a shape NxC,
+                which contains all points in the batch.
+            img_metas (list[list[dict]]): the outer list indicates test-time
+                augs (multiscale, flip, etc.) and the inner list indicates
+                images in a batch
+            img (list[torch.Tensor], optional): the outer
+                list indicates test-time augmentations and inner
+                torch.Tensor should have a shape NxCxHxW, which contains
+                all images in the batch. Defaults to None.
+        """
+
+        for var, name in [(img_metas, 'img_metas')]:
+            if not isinstance(var, list):
+                raise TypeError('{} must be a list, but got {}'.format(
+                    name, type(var)))
+                # num_augs = len(points) if points is not None else len(img)
+        img = [img] if img is None else img
+        points = [points] if points is None else points
+        radar = [radar] if radar is None else radar
+
+        return self.simple_test(img_metas[0], points[0], img[0], radar[0], **kwargs)
+
+
+    def simple_test(self, img_metas, points=None, img=None,  radar=None, rescale=False):
+        """Test function without augmentaiton."""
+        img_feats, radar_pts_feats = self.extract_feat(
+            img=img, img_metas=img_metas, radar_pts=radar)
+
+        bbox_list = [dict() for i in range(len(img_metas))]
+
+        # if radar_pts_feats and self.with_pts_bbox:
+        bbox_pts = self.simple_test_pts(
+            radar_pts_feats, img_metas, rescale=rescale)
+        for result_dict, pts_bbox in zip(bbox_list, bbox_pts):
+            result_dict['pts_bbox'] = pts_bbox
+
+        return bbox_list
 
     def show_results(self, data, result, out_dir, show=False):
         """Results visualization.

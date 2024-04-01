@@ -1,16 +1,15 @@
 plugin = 'plugin/pointpillar'
 
 # key Parameters      >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-batch_size = 16
-num_works = 8
+batch_size = 2
+num_works = 1
 max_epochs = 500
 
 # 数据集相关 >>>
 # For nuscenes >>
 dataset_type = 'NuScenesDataset'
-# data_root = '/mnt/data/adt_dataset/nuscenes/' # mini in server
-data_root = '/mnt/data/adt_dataset/OpenDataLab___nuScenes/nuscenes/' # full in server
-# data_root = '/media/zwh/ZWH4T/ZWH/Dataset3d/nuscenes/'
+data_root = '/mnt/data/adt_dataset/nuscenes/' # mini in server
+# data_root = '/mnt/data/adt_dataset/OpenDataLab___nuScenes/nuscenes/' # full in server
 DataBaseSampler = 'DataBaseSamplerNuscenes'
 ann_file_prefix = data_root + 'nuscenes_'  # nuscenes
 load_dim = 5  # xyzit
@@ -38,12 +37,14 @@ resume_from = None
 # key Parameters      <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
 # Configs of Datasets >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-point_cloud_range = [-51.2, -51.2, -5.0, 51.2, 51.2, 3.0]
-voxel_size = [0.2, 0.2, point_cloud_range[5] - point_cloud_range[2]]
-# # x y z rcs
-# radar_use_dims = [0, 1, 2, 8]
+point_cloud_range = [-50, -50, -3, 50, 50, 5]
+voxel_size = [1.0, 1.0, point_cloud_range[5] - point_cloud_range[2]]
+
 # x y z
-radar_use_dims = [0, 1, 2]
+# radar_use_dims = [0, 1, 2]
+
+# x y z rcs vx vy
+radar_use_dims = [0, 1, 2, 5, 8, 9]
 
 # For nuScenes we usually do 10-class detection
 # class_names = [
@@ -204,8 +205,8 @@ model = dict(
     hand=dict(
         point_cloud_range=point_cloud_range,
         voxel_size=voxel_size,
-        max_num_points=10,
-        max_voxels=[90000, 120000],
+        max_num_points=32,
+        max_voxels=[16000, 40000],
         out_channel=64,
         pt_type='radar'),
     radar_pts_backbone=dict(
@@ -223,7 +224,7 @@ model = dict(
         out_channels=256,
         start_level=0,
         num_outs=3),
-    radar_pts_bbox_head=dict(
+    pts_bbox_head=dict(
         type='Anchor3DHead',
         num_classes=len(class_names),
         in_channels=256,
@@ -300,7 +301,7 @@ momentum_config = None
 
 
 # Configs of Others    >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-evaluation = dict(interval=1, pipeline=eval_pipeline)
+evaluation = dict(interval=20, pipeline=eval_pipeline)
 checkpoint_config = dict(interval=10, max_keep_ckpts=5)
 log_config = dict(
     interval=10,

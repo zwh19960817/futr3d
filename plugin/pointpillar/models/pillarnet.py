@@ -13,8 +13,9 @@ class PillarNet(nn.Module):
             in_channel = 9
             self.num_features = 3  # use [xyz] for lidar
         elif self.pt_type == 'radar':
-            in_channel = 10
-            self.num_features = 3  # use [xyz] for radar
+            in_channel = 12
+            # self.num_features = 3  # use [xyz] for radar
+            self.num_features = 6  # use [x,y,z,rcs,vx_comp,vy_comp] for radar
         self.voxelizer = Voxelizer(voxel_size, point_cloud_range, max_num_points, max_voxels)
         self.pillarencoder = PillarEncoder(voxel_size, point_cloud_range, in_channel, out_channel)
 
