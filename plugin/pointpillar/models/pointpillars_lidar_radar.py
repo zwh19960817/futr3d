@@ -11,9 +11,9 @@ from mmcv.runner import auto_fp16
 
 
 @DETECTORS.register_module()
-class PointPillars_Radar(MVXTwoStageDetector):
+class PointPillars_Lidar_Radar(MVXTwoStageDetector):
     def __init__(self,
-                 use_lidar=False,
+                 use_lidar=True,
                  use_camera=False,
                  use_radar=True,
                  hand=None,
@@ -30,7 +30,7 @@ class PointPillars_Radar(MVXTwoStageDetector):
                  test_cfg=None,
                  pretrained=None,
                  init_cfg=None):
-        super(PointPillars_Radar, self).__init__(pts_backbone=pts_backbone,
+        super(PointPillars_Lidar_Radar, self).__init__(pts_backbone=pts_backbone,
                                            pts_neck=pts_neck,
                                            pts_bbox_head=pts_bbox_head,
                                            train_cfg=train_cfg,
@@ -95,19 +95,20 @@ class PointPillars_Radar(MVXTwoStageDetector):
             img_feats = self.img_neck(img_feats)
         return img_feats
 
-    def extract_pts_feat(self, radar_pts, img_feats, img_metas):
+    def extract_pts_feat(self, lidar_pts, img_feats, img_metas):
         """Extract features of points."""
-        x = self.radar_hand(radar_pts)
+        x = self.radar_hand(lidar_pts)
         x = self.radar_pts_backbone(x)
         if self.with_radar_pts_neck:
             x = self.radar_pts_neck(x)
         return x
 
-    def extract_feat(self, radar_pts, img, img_metas):
+    def extract_feat(self, lidar_pts, radar_pts, img, img_metas):
         """Extract features from images and points."""
         img_feats = self.extract_img_feat(img, img_metas)
+        lidar_pts_feats = self.extract_pts_feat(lidar_pts, img_feats, img_metas)
         radar_pts_feats = self.extract_pts_feat(radar_pts, img_feats, img_metas)
-        return (img_feats, radar_pts_feats)
+        return (img_feats, lidar_pts_feats, radar_pts_feats)
 
     def forward_train(self,
                       points=None,
@@ -146,10 +147,17 @@ class PointPillars_Radar(MVXTwoStageDetector):
             dict: Losses of different branches.
         """
 
-        img_feats, radar_pts_feats = self.extract_feat(radar_pts=radar,
-                                                       img=img,
-                                                       img_metas=img_metas)
+        img_feats, lidar_pts_feats, radar_pts_feats = self.extract_feat(lidar_pts=points,
+                                                                        radar_pts=radar,
+                                                                        img=img,
+                                                                        img_metas=img_metas)
         losses = dict()
+
+        if lidar_pts_feats:
+            losses_pts = self.forward_pts_train(lidar_pts_feats, gt_bboxes_3d,
+                                                gt_labels_3d, img_metas,
+                                                gt_bboxes_ignore)
+            losses.update(losses_pts)
 
         if radar_pts_feats:
             losses_pts = self.forward_pts_train(radar_pts_feats, gt_bboxes_3d,
@@ -160,6 +168,7 @@ class PointPillars_Radar(MVXTwoStageDetector):
         return losses
 
     def forward_pts_train(self,
+                          lidar_pts_feats,
                           radar_pts_feats,
                           gt_bboxes_3d,
                           gt_labels_3d,
@@ -180,7 +189,8 @@ class PointPillars_Radar(MVXTwoStageDetector):
         Returns:
             dict: Losses of each branch.
         """
-        outs = self.pts_bbox_head(radar_pts_feats)
+        outs = self.pts_bbox_head(lidar_pts_feats)
+        outs += self.pts_bbox_head(radar_pts_feats)
         loss_inputs = outs + (gt_bboxes_3d, gt_labels_3d, img_metas)
         losses = self.pts_bbox_head.loss(
             *loss_inputs, gt_bboxes_ignore=gt_bboxes_ignore)
@@ -215,16 +225,22 @@ class PointPillars_Radar(MVXTwoStageDetector):
 
     def simple_test(self, img_metas, points=None, img=None, radar=None, rescale=False):
         """Test function without augmentaiton."""
-        img_feats, radar_pts_feats = self.extract_feat(
-            img=img, img_metas=img_metas, radar_pts=radar)
+        img_feats, lidar_pts_feats, radar_pts_feats= self.extract_feat(
+            img=img, img_metas=img_metas, lidar_pts=points, radar_pts=radar)
 
         bbox_list = [dict() for i in range(len(img_metas))]
 
-        # if radar_pts_feats and self.with_pts_bbox:
-        bbox_pts = self.simple_test_pts(
-            radar_pts_feats, img_metas, rescale=rescale)
-        for result_dict, pts_bbox in zip(bbox_list, bbox_pts):
-            result_dict['pts_bbox'] = pts_bbox
+        if lidar_pts_feats:
+            bbox_pts = self.simple_test_pts(
+                lidar_pts_feats, img_metas, rescale=rescale)
+            for result_dict, pts_bbox in zip(bbox_list, bbox_pts):
+                result_dict['pts_bbox'] = pts_bbox
+
+        if radar_pts_feats:
+            bbox_pts = self.simple_test_pts(
+                radar_pts_feats, img_metas, rescale=rescale)
+            for result_dict, pts_bbox in zip(bbox_list, bbox_pts):
+                result_dict['pts_bbox'] = pts_bbox
 
         return bbox_list
 

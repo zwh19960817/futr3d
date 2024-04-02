@@ -1,15 +1,15 @@
 plugin = 'plugin/pointpillar'
 
 # key Parameters      >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-batch_size = 2
-num_works = 1
-max_epochs = 500
+batch_size = 32
+num_works = 8
+max_epochs = 42
 
 # 数据集相关 >>>
 # For nuscenes >>
 dataset_type = 'NuScenesDataset'
-data_root = '/mnt/data/adt_dataset/nuscenes/' # mini in server
-# data_root = '/mnt/data/adt_dataset/OpenDataLab___nuScenes/nuscenes/' # full in server
+# data_root = '/mnt/data/adt_dataset/nuscenes/' # mini in server
+data_root = '/mnt/data/adt_dataset/OpenDataLab___nuScenes/nuscenes/' # full in server
 DataBaseSampler = 'DataBaseSamplerNuscenes'
 ann_file_prefix = data_root + 'nuscenes_'  # nuscenes
 load_dim = 5  # xyzit
@@ -38,7 +38,7 @@ resume_from = None
 
 # Configs of Datasets >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 point_cloud_range = [-50, -50, -3, 50, 50, 5]
-voxel_size = [1.0, 1.0, point_cloud_range[5] - point_cloud_range[2]]
+voxel_size = [0.25, 0.25, point_cloud_range[5] - point_cloud_range[2]]
 
 # x y z
 # radar_use_dims = [0, 1, 2]
@@ -58,7 +58,7 @@ class_names = [
 # Input modality for nuScenes dataset, this is consistent with the submission
 # format which requires the information in input_modality.
 input_modality = dict(
-    use_lidar=False,
+    use_lidar=True,
     use_camera=False,
     use_radar=True,
     use_map=False,
@@ -198,17 +198,17 @@ data = dict(
 
 # Configs of Model    >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 model = dict(
-    type='PointPillars_Radar',
-    use_lidar=False,
+    type='PointPillars_Lidar',
+    use_lidar=True,
     use_camera=False,
-    use_radar=True,
+    use_radar=False,
     hand=dict(
         point_cloud_range=point_cloud_range,
         voxel_size=voxel_size,
         max_num_points=32,
         max_voxels=[16000, 40000],
         out_channel=64,
-        pt_type='radar'),
+        pt_type='lidar'),
     radar_pts_backbone=dict(
         type='SECOND',
         in_channels=64,
@@ -301,8 +301,8 @@ momentum_config = None
 
 
 # Configs of Others    >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-evaluation = dict(interval=1, pipeline=eval_pipeline)
-checkpoint_config = dict(interval=10, max_keep_ckpts=5)
+evaluation = dict(interval=21, pipeline=eval_pipeline)
+checkpoint_config = dict(interval=1, max_keep_ckpts=5)
 log_config = dict(
     interval=10,
     hooks=[
